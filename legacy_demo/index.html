@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Employee Attendance Monitoring and Payroll Management System</title>
+<style>
+:root{
+  --primary:#2563eb;--primary-dark:#1d4ed8;--bg:#f5f7fb;--card:#fff;
+  --text:#172033;--muted:#6b7280;--border:#e5e7eb;--success:#16a34a;
+  --warning:#d97706;--danger:#dc2626;--sidebar:#111827;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text)}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer;border:0}
+.app{display:flex;min-height:100vh}
+.sidebar{width:250px;background:var(--sidebar);color:#fff;position:fixed;inset:0 auto 0 0;z-index:20;display:flex;flex-direction:column}
+.brand{padding:22px 20px;border-bottom:1px solid #263041}
+.brand h1{font-size:16px;line-height:1.35;margin:0 0 5px}
+.brand p{margin:0;color:#9ca3af;font-size:11px}
+.nav{padding:14px 10px;overflow:auto}
+.nav button{width:100%;background:transparent;color:#cbd5e1;text-align:left;padding:12px 14px;border-radius:9px;margin:2px 0;font-size:14px}
+.nav button:hover,.nav button.active{background:#1f2937;color:#fff}
+.nav button.active{box-shadow:inset 3px 0 0 var(--primary)}
+.sidebar-footer{margin-top:auto;padding:15px 18px;border-top:1px solid #263041;color:#9ca3af;font-size:11px}
+.main{margin-left:250px;width:calc(100% - 250px)}
+.topbar{height:68px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:10}
+.page-title{font-size:20px;font-weight:700}
+.user{display:flex;align-items:center;gap:10px;font-size:13px}
+.avatar{width:36px;height:36px;border-radius:50%;background:#dbeafe;color:#1d4ed8;display:grid;place-items:center;font-weight:700}
+.content{padding:28px;max-width:1500px;margin:auto}
+.page{display:none}.page.active{display:block}
+.grid{display:grid;gap:18px}
+.stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+.card{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:20px;box-shadow:0 2px 7px rgba(15,23,42,.03)}
+.stat{display:flex;justify-content:space-between;align-items:flex-start}
+.stat .label{font-size:12px;color:var(--muted);margin-bottom:8px}
+.stat .value{font-size:27px;font-weight:750}
+.iconbox{width:42px;height:42px;border-radius:10px;background:#eff6ff;color:var(--primary);display:grid;place-items:center;font-weight:700}
+.section-head{display:flex;justify-content:space-between;align-items:center;gap:15px;margin:26px 0 14px}
+.section-head h2{font-size:16px;margin:0}
+.btn{padding:9px 14px;border-radius:8px;font-size:13px;font-weight:650}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-dark)}
+.btn-secondary{background:#eef2f7;color:#334155}.btn-success{background:#dcfce7;color:#166534}
+.btn-danger{background:#fee2e2;color:#991b1b}.btn-warning{background:#fef3c7;color:#92400e}
+.btn-sm{padding:6px 9px;font-size:12px}
+.actions{display:flex;gap:7px;flex-wrap:wrap}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);background:#fafafa}
+tr:last-child td{border-bottom:0}
+.status{display:inline-flex;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700}
+.present,.approved,.paid,.active-status{background:#dcfce7;color:#166534}
+.absent,.rejected,.inactive{background:#fee2e2;color:#991b1b}
+.pending,.onleave{background:#fef3c7;color:#92400e}
+.neutral{background:#e5e7eb;color:#374151}
+.toolbar{display:flex;justify-content:space-between;gap:12px;margin-bottom:15px;flex-wrap:wrap}
+.search{min-width:230px;flex:1;max-width:400px}
+input,select,textarea{border:1px solid #d1d5db;border-radius:8px;padding:9px 11px;background:#fff;color:var(--text);outline:none}
+input:focus,select:focus,textarea:focus{border-color:#93c5fd;box-shadow:0 0 0 3px #dbeafe}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:12px;font-weight:650;color:#374151}
+.field.full{grid-column:1/-1}
+.modal-wrap{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
+.modal-wrap.open{display:flex}
+.modal{background:#fff;border-radius:14px;width:min(680px,100%);max-height:90vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.2)}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--border)}
+.modal-head h3{margin:0;font-size:17px}.close{background:transparent;font-size:24px;color:#64748b}
+.modal-body{padding:20px}.modal-foot{padding:15px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+.notice{padding:12px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;color:#1e40af;font-size:12px;margin-bottom:16px}
+.two-col{grid-template-columns:1.4fr 1fr}
+.quick-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.quick-actions button{padding:16px;background:#f8fafc;border:1px solid var(--border);border-radius:10px;text-align:left}
+.quick-actions strong{display:block;font-size:13px;margin-bottom:4px}.quick-actions span{font-size:11px;color:var(--muted)}
+.progress{height:8px;background:#e5e7eb;border-radius:10px;overflow:hidden}.progress>span{display:block;height:100%;background:var(--primary)}
+.muted{color:var(--muted);font-size:12px}
+.empty{text-align:center;padding:30px;color:var(--muted);font-size:13px}
+.footer-note{text-align:center;color:#94a3b8;font-size:11px;margin:30px 0 10px}
+.print-area{background:#fff;padding:30px}
+.payslip{max-width:720px;margin:auto;border:1px solid #ddd;padding:28px}
+.payslip h2{text-align:center;margin:0 0 4px}.payslip .company{text-align:center;color:#6b7280;font-size:12px;margin-bottom:25px}
+.payline{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;font-size:13px}
+.payline.total{font-weight:750;font-size:15px;border-top:2px solid #111;border-bottom:0;margin-top:8px}
+@media(max-width:1050px){.stats{grid-template-columns:repeat(2,1fr)}.two-col{grid-template-columns:1fr}}
+@media(max-width:760px){
+  .sidebar{width:72px}.brand{padding:16px 8px;text-align:center}.brand h1{font-size:0}.brand h1:after{content:"EAP";font-size:17px}.brand p{display:none}
+  .nav button{font-size:0;text-align:center;padding:12px}.nav button:before{content:"•";font-size:22px}.sidebar-footer{display:none}
+  .main{margin-left:72px;width:calc(100% - 72px)}.content{padding:16px}.topbar{padding:0 16px}.form-grid{grid-template-columns:1fr}.quick-actions{grid-template-columns:1fr}
+  .stats{grid-template-columns:1fr 1fr}table{min-width:700px}.table-wrap{overflow:auto}
+}
+@media(max-width:500px){.stats{grid-template-columns:1fr}.page-title{font-size:17px}}
+@media print{
+  body{background:#fff}.sidebar,.topbar,.no-print{display:none!important}.main{margin:0;width:100%}.content{padding:0}.page{display:none!important}.page.print-page{display:block!important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+  <div class="brand">
+    <h1>Employee Attendance<br>and Payroll System</h1>
+    <p>Academic Activity Prototype</p>
+  </div>
+  <nav class="nav">
+    <button class="active" data-page="dashboard">Dashboard</button>
+    <button data-page="employees">Employees</button>
+    <button data-page="attendance">Attendance</button>
+    <button data-page="leave">Leave Requests</button>
+    <button data-page="overtime">Overtime</button>
+    <button data-page="payroll">Payroll</button>
+    <button data-page="benefits">Benefits</button>
+    <button data-page="costcenters">Cost Centers</button>
+    <button data-page="reports">Reports</button>
+  </nav>
+  <div class="sidebar-footer">Demo data only<br>For academic presentation</div>
+</aside>
+
+<main class="main">
+<header class="topbar">
+  <div class="page-title" id="pageTitle">Dashboard</div>
+  <div class="user"><span>Administrator</span><div class="avatar">AD</div></div>
+</header>
+
+<div class="content">
+
+<section class="page active" id="page-dashboard">
+  <div class="notice"><strong>Activity Demo:</strong> This prototype is designed for presentation purposes. Data is stored only in this browser using local storage.</div>
+  <div class="grid stats">
+    <div class="card stat"><div><div class="label">Total Employees</div><div class="value" id="statEmployees">0</div></div><div class="iconbox">EMP</div></div>
+    <div class="card stat"><div><div class="label">Present Today</div><div class="value" id="statPresent">0</div></div><div class="iconbox">IN</div></div>
+    <div class="card stat"><div><div class="label">On Leave</div><div class="value" id="statLeave">0</div></div><div class="iconbox">LV</div></div>
+    <div class="card stat"><div><div class="label">Pending Requests</div><div class="value" id="statPending">0</div></div><div class="iconbox">!</div></div>
+  </div>
+
+  <div class="grid two-col" style="margin-top:20px">
+    <div class="card">
+      <div class="section-head" style="margin-top:0"><h2>Today's Attendance</h2><button class="btn btn-secondary btn-sm" onclick="showPage('attendance')">View All</button></div>
+      <div class="table-wrap"><table><thead><tr><th>Employee</th><th>Time In</th><th>Status</th></tr></thead><tbody id="dashboardAttendance"></tbody></table></div>
+    </div>
+    <div class="card">
+      <div class="section-head" style="margin-top:0"><h2>Quick Actions</h2></div>
+      <div class="quick-actions">
+        <button onclick="openEmployeeModal()"><strong>+ Add Employee</strong><span>Create an employee record</span></button>
+        <button onclick="showPage('attendance')"><strong>Clock Attendance</strong><span>Record time-in or time-out</span></button>
+        <button onclick="showPage('payroll')"><strong>Process Payroll</strong><span>View demo payroll calculation</span></button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="page-employees">
+  <div class="section-head"><h2>Employee Information Management</h2><button class="btn btn-primary" onclick="openEmployeeModal()">+ Add Employee</button></div>
+  <div class="card">
+    <div class="toolbar"><input class="search" id="employeeSearch" placeholder="Search employee name, ID or department..." oninput="renderEmployees()"></div>
+    <div class="table-wrap"><table><thead><tr><th>ID</th><th>Employee</th><th>Department</th><th>Position</th><th>Monthly Salary</th><th>Status</th><th>Actions</th></tr></thead><tbody id="employeeTable"></tbody></table></div>
+  </div>
+</section>
+
+<section class="page" id="page-attendance">
+  <div class="section-head"><h2>Employee Attendance Monitoring</h2><button class="btn btn-primary" onclick="showPage('employees')">Manage Employees</button></div>
+  <div class="card">
+    <div class="toolbar"><div><strong id="attendanceDate"></strong><div class="muted">Demo attendance for the current browser date</div></div><input class="search" id="attendanceSearch" placeholder="Search employee..." oninput="renderAttendance()"></div>
+    <div class="table-wrap"><table><thead><tr><th>Employee</th><th>Department</th><th>Time In</th><th>Time Out</th><th>Working Hours</th><th>Status</th><th>Action</th></tr></thead><tbody id="attendanceTable"></tbody></table></div>
+  </div>
+</section>
+
+<section class="page" id="page-leave">
+  <div class="section-head"><h2>Leave Request and Approval Management</h2><button class="btn btn-primary" onclick="openLeaveModal()">+ New Leave Request</button></div>
+  <div class="card">
+    <div class="table-wrap"><table><thead><tr><th>Request ID</th><th>Employee</th><th>Leave Type</th><th>Dates</th><th>Reason</th><th>Status</th><th>Action</th></tr></thead><tbody id="leaveTable"></tbody></table></div>
+  </div>
+</section>
+
+<section class="page" id="page-overtime">
+  <div class="section-head"><h2>Overtime and Compensation Management</h2><button class="btn btn-primary" onclick="openOvertimeModal()">+ Add Overtime</button></div>
+  <div class="card">
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Employee</th><th>Hours</th><th>Rate/Hour</th><th>Amount</th><th>Status</th></tr></thead><tbody id="overtimeTable"></tbody></table></div>
+  </div>
+</section>
+
+<section class="page" id="page-payroll">
+  <div class="section-head"><h2>Payroll Processing</h2><div class="actions"><button class="btn btn-secondary" onclick="calculatePayroll()">Recalculate</button><button class="btn btn-primary" onclick="printCurrentPayslip()">Print Payslip</button></div></div>
+  <div class="notice">Payroll figures in this prototype are <strong>sample values</strong> for demonstration and are not a substitute for official tax, benefit, or payroll rules.</div>
+  <div class="card">
+    <div class="toolbar"><select id="payrollEmployee" onchange="renderPayroll()"></select><div class="muted">Demo payroll period: Current Month</div></div>
+    <div id="payrollContent"></div>
+  </div>
+</section>
+
+<section class="page" id="page-benefits">
+  <div class="section-head"><h2>Employee Benefits Management</h2><button class="btn btn-primary" onclick="openBenefitModal()">+ Add Benefit</button></div>
+  <div class="card"><div class="table-wrap"><table><thead><tr><th>Employee</th><th>Benefit</th><th>Amount</th><th>Frequency</th><th>Status</th><th>Action</th></tr></thead><tbody id="benefitTable"></tbody></table></div></div>
+</section>
+
+<section class="page" id="page-costcenters">
+  <div class="section-head"><h2>Cost Center Management</h2><button class="btn btn-primary" onclick="openCostCenterModal()">+ Add Cost Center</button></div>
+  <div class="card"><div class="table-wrap"><table><thead><tr><th>Code</th><th>Cost Center</th><th>Department</th><th>Budget</th><th>Status</th></tr></thead><tbody id="costCenterTable"></tbody></table></div></div>
+</section>
+
+<section class="page" id="page-reports">
+  <div class="section-head"><h2>Reports and Analytics</h2><button class="btn btn-secondary" onclick="window.print()">Print Report</button></div>
+  <div class="grid stats">
+    <div class="card"><div class="label muted">Attendance Rate</div><div class="value" id="reportAttendanceRate">0%</div><div class="progress" style="margin-top:12px"><span id="reportAttendanceBar" style="width:0%"></span></div></div>
+    <div class="card"><div class="label muted">Approved Leave Requests</div><div class="value" id="reportApprovedLeave">0</div></div>
+    <div class="card"><div class="label muted">Overtime Hours</div><div class="value" id="reportOvertime">0</div></div>
+    <div class="card"><div class="label muted">Estimated Payroll</div><div class="value" id="reportPayroll">₱0</div></div>
+  </div>
+  <div class="card" style="margin-top:20px">
+    <div class="section-head" style="margin-top:0"><h2>Attendance Summary</h2></div>
+    <div class="table-wrap"><table><thead><tr><th>Employee</th><th>Present</th><th>Absent</th><th>Attendance Rate</th></tr></thead><tbody id="reportTable"></tbody></table></div>
+  </div>
+</section>
+
+<section class="page print-page" id="page-payslip">
+  <div class="print-area" id="payslipArea"></div>
+</section>
+
+<div class="footer-note">Employee Attendance Monitoring and Payroll Management System • Academic Prototype • Demo data only</div>
+</div>
+</main>
+</div>
+
+<!-- Employee Modal -->
+<div class="modal-wrap" id="employeeModal"><div class="modal">
+  <div class="modal-head"><h3 id="employeeModalTitle">Add Employee</h3><button class="close" onclick="closeModal('employeeModal')">×</button></div>
+  <div class="modal-body"><form id="employeeForm"><input type="hidden" id="empEditId">
+    <div class="form-grid">
+      <div class="field"><label>Employee ID</label><input id="empId" required></div>
+      <div class="field"><label>Full Name</label><input id="empName" required></div>
+      <div class="field"><label>Department</label><input id="empDept" required></div>
+      <div class="field"><label>Position</label><input id="empPosition" required></div>
+      <div class="field"><label>Monthly Salary (₱)</label><input id="empSalary" type="number" min="0" required></div>
+      <div class="field"><label>Status</label><select id="empStatus"><option>Active</option><option>Inactive</option></select></div>
+    </div>
+  </form></div>
+  <div class="modal-foot"><button class="btn btn-secondary" onclick="closeModal('employeeModal')">Cancel</button><button class="btn btn-primary" onclick="saveEmployee()">Save Employee</button></div>
+</div></div>
+
+<!-- Leave Modal -->
+<div class="modal-wrap" id="leaveModal"><div class="modal">
+  <div class="modal-head"><h3>New Leave Request</h3><button class="close" onclick="closeModal('leaveModal')">×</button></div>
+  <div class="modal-body"><form id="leaveForm">
+    <div class="form-grid">
+      <div class="field"><label>Employee</label><select id="leaveEmployee"></select></div>
+      <div class="field"><label>Leave Type</label><select id="leaveType"><option>Vacation Leave</option><option>Sick Leave</option><option>Emergency Leave</option><option>Other</option></select></div>
+      <div class="field"><label>Start Date</label><input id="leaveStart" type="date" required></div>
+      <div class="field"><label>End Date</label><input id="leaveEnd" type="date" required></div>
+      <div class="field full"><label>Reason</label><textarea id="leaveReason" rows="3" placeholder="Enter reason..."></textarea></div>
+    </div>
+  </form></div>
+  <div class="modal-foot"><button class="btn btn-secondary" onclick="closeModal('leaveModal')">Cancel</button><button class="btn btn-primary" onclick="saveLeave()">Submit Request</button></div>
+</div></div>
+
+<!-- Overtime Modal -->
+<div class="modal-wrap" id="overtimeModal"><div class="modal">
+  <div class="modal-head"><h3>Add Overtime Record</h3><button class="close" onclick="closeModal('overtimeModal')">×</button></div>
+  <div class="modal-body"><form>
+    <div class="form-grid">
+      <div class="field"><label>Employee</label><select id="otEmployee"></select></div>
+      <div class="field"><label>Date</label><input id="otDate" type="date" required></div>
+      <div class="field"><label>Hours</label><input id="otHours" type="number" min="0" step=".5" required></div>
+      <div class="field"><label>Rate per Hour (₱)</label><input id="otRate" type="number" min="0" step=".01" required></div>
+    </div>
+  </form></div>
+  <div class="modal-foot"><button class="btn btn-secondary" onclick="closeModal('overtimeModal')">Cancel</button><button class="btn btn-primary" onclick="saveOvertime()">Save Overtime</button></div>
+</div></div>
+
+<!-- Benefit Modal -->
+<div class="modal-wrap" id="benefitModal"><div class="modal">
+  <div class="modal-head"><h3>Add Employee Benefit</h3><button class="close" onclick="closeModal('benefitModal')">×</button></div>
+  <div class="modal-body">
+    <div class="form-grid">
+      <div class="field"><label>Employee</label><select id="benefitEmployee"></select></div>
+      <div class="field"><label>Benefit Name</label><input id="benefitName" placeholder="e.g. Health Allowance"></div>
+      <div class="field"><label>Amount (₱)</label><input id="benefitAmount" type="number" min="0"></div>
+      <div class="field"><label>Frequency</label><select id="benefitFrequency"><option>Monthly</option><option>Annual</option><option>One-time</option></select></div>
+    </div>
+  </div>
+  <div class="modal-foot"><button class="btn btn-secondary" onclick="closeModal('benefitModal')">Cancel</button><button class="btn btn-primary" onclick="saveBenefit()">Save Benefit</button></div>
+</div></div>
+
+<!-- Cost Center Modal -->
+<div class="modal-wrap" id="costCenterModal"><div class="modal">
+  <div class="modal-head"><h3>Add Cost Center</h3><button class="close" onclick="closeModal('costCenterModal')">×</button></div>
+  <div class="modal-body">
+    <div class="form-grid">
+      <div class="field"><label>Code</label><input id="ccCode" placeholder="CC-004"></div>
+      <div class="field"><label>Cost Center</label><input id="ccName"></div>
+      <div class="field"><label>Department</label><input id="ccDept"></div>
+      <div class="field"><label>Budget (₱)</label><input id="ccBudget" type="number" min="0"></div>
+    </div>
+  </div>
+  <div class="modal-foot"><button class="btn btn-secondary" onclick="closeModal('costCenterModal')">Cancel</button><button class="btn btn-primary" onclick="saveCostCenter()">Save Cost Center</button></div>
+</div></div>
+
+<script>
+const KEY='eap_demo_v1';
+const today=()=>new Date().toISOString().slice(0,10);
+const money=n=>'₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const timeNow=()=>new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+
+let db=JSON.parse(localStorage.getItem(KEY)||'null') || {
+ employees:[
+  {id:'EMP-001',name:'Juan Dela Cruz',dept:'Human Resources',position:'HR Officer',salary:25000,status:'Active'},
+  {id:'EMP-002',name:'Maria Santos',dept:'Finance',position:'Payroll Staff',salary:28000,status:'Active'},
+  {id:'EMP-003',name:'John Reyes',dept:'Information Technology',position:'System Administrator',salary:32000,status:'Active'},
+  {id:'EMP-004',name:'Angela Garcia',dept:'Operations',position:'Operations Staff',salary:23000,status:'Active'},
+  {id:'EMP-005',name:'Mark Villanueva',dept:'Administration',position:'Administrative Assistant',salary:22000,status:'Active'}
+ ],
+ attendance:[
+  {date:today(),empId:'EMP-001',in:'08:01 AM',out:'05:02 PM',status:'Present'},
+  {date:today(),empId:'EMP-002',in:'08:15 AM',out:'05:04 PM',status:'Present'},
+  {date:today(),empId:'EMP-003',in:'08:05 AM',out:'',status:'Present'},
+  {date:today(),empId:'EMP-004',in:'',out:'',status:'Absent'},
+  {date:today(),empId:'EMP-005',in:'08:10 AM',out:'',status:'Present'}
+ ],
+ leaves:[
+  {id:'LR-001',empId:'EMP-004',type:'Vacation Leave',start:today(),end:today(),reason:'Personal matter',status:'Pending'},
+  {id:'LR-002',empId:'EMP-002',type:'Sick Leave',start:today(),end:today(),reason:'Medical appointment',status:'Approved'}
+ ],
+ overtime:[
+  {date:today(),empId:'EMP-003',hours:2,rate:200,status:'Approved'},
+  {date:today(),empId:'EMP-002',hours:1.5,rate:175,status:'Pending'}
+ ],
+ benefits:[
+  {empId:'EMP-001',name:'Health Allowance',amount:1000,frequency:'Monthly',status:'Active'},
+  {empId:'EMP-002',name:'Transportation Allowance',amount:1500,frequency:'Monthly',status:'Active'},
+  {empId:'EMP-003',name:'Communication Allowance',amount:1000,frequency:'Monthly',status:'Active'}
+ ],
+ costCenters:[
+  {code:'CC-001',name:'Human Resources',dept:'HR',budget:500000,status:'Active'},
+  {code:'CC-002',name:'Finance',dept:'Finance',budget:650000,status:'Active'},
+  {code:'CC-003',name:'Information Technology',dept:'IT',budget:900000,status:'Active'}
+ ]
+};
+function persist(){localStorage.setItem(KEY,JSON.stringify(db));}
+function emp(id){return db.employees.find(e=>e.id===id)||{name:'Unknown Employee',salary:0};}
+function statusClass(s){return String(s).toLowerCase().replace(/\s+/g,'')}
+function statusTag(s){return `<span class="status ${statusClass(s)}">${esc(s)}</span>`}
+function showPage(page){
+ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active','print-page'));
+ document.getElementById('page-'+page)?.classList.add('active');
+ document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
+ const labels={dashboard:'Dashboard',employees:'Employees',attendance:'Attendance',leave:'Leave Requests',overtime:'Overtime',payroll:'Payroll',benefits:'Benefits',costcenters:'Cost Centers',reports:'Reports'};
+ document.getElementById('pageTitle').textContent=labels[page]||page;
+ if(page==='dashboard')renderDashboard();
+ if(page==='employees')renderEmployees();
+ if(page==='attendance')renderAttendance();
+ if(page==='leave')renderLeaves();
+ if(page==='overtime')renderOvertime();
+ if(page==='payroll'){fillEmployeeSelect('payrollEmployee');renderPayroll()}
+ if(page==='benefits')renderBenefits();
+ if(page==='costcenters')renderCostCenters();
+ if(page==='reports')renderReports();
+}
+document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+function fillEmployeeSelect(id){
+ const el=document.getElementById(id); if(!el)return;
+ const current=el.value;
+ el.innerHTML=db.employees.filter(e=>e.status==='Active').map(e=>`<option value="${esc(e.id)}">${esc(e.name)} (${esc(e.id)})</option>`).join('');
+ if(current && [...el.options].some(o=>o.value===current))el.value=current;
+}
+function renderDashboard(){
+ document.getElementById('statEmployees').textContent=db.employees.length;
+ const att=db.attendance.filter(a=>a.date===today());
+ document.getElementById('statPresent').textContent=att.filter(a=>a.status==='Present').length;
+ document.getElementById('statLeave').textContent=db.leaves.filter(l=>l.status==='Approved' && l.start<=today() && l.end>=today()).length;
+ document.getElementById('statPending').textContent=db.leaves.filter(l=>l.status==='Pending').length;
+ document.getElementById('attendanceDate').textContent=new Date().toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+ document.getElementById('dashboardAttendance').innerHTML=att.slice(0,6).map(a=>`<tr><td>${esc(emp(a.empId).name)}</td><td>${esc(a.in||'—')}</td><td>${statusTag(a.status)}</td></tr>`).join('')||`<tr><td colspan="3" class="empty">No attendance records.</td></tr>`;
+}
+function renderEmployees(){
+ const q=(document.getElementById('employeeSearch')?.value||'').toLowerCase();
+ const rows=db.employees.filter(e=>(e.id+' '+e.name+' '+e.dept).toLowerCase().includes(q));
+ document.getElementById('employeeTable').innerHTML=rows.map(e=>`<tr>
+ <td>${esc(e.id)}</td><td><strong>${esc(e.name)}</strong></td><td>${esc(e.dept)}</td><td>${esc(e.position)}</td>
+ <td>${money(e.salary)}</td><td>${statusTag(e.status)}</td><td><div class="actions">
+ <button class="btn btn-secondary btn-sm" onclick="editEmployee('${e.id}')">Edit</button>
+ <button class="btn btn-danger btn-sm" onclick="deleteEmployee('${e.id}')">Delete</button></div></td></tr>`).join('')||`<tr><td colspan="7" class="empty">No employees found.</td></tr>`;
+}
+function openEmployeeModal(){
+ document.getElementById('employeeModalTitle').textContent='Add Employee';
+ document.getElementById('empEditId').value='';
+ document.getElementById('employeeForm').reset();
+ openModal('employeeModal');
+}
+function editEmployee(id){
+ const e=emp(id); document.getElementById('employeeModalTitle').textContent='Edit Employee';
+ document.getElementById('empEditId').value=e.id;document.getElementById('empId').value=e.id;document.getElementById('empName').value=e.name;
+ document.getElementById('empDept').value=e.dept;document.getElementById('empPosition').value=e.position;document.getElementById('empSalary').value=e.salary;document.getElementById('empStatus').value=e.status;openModal('employeeModal');
+}
+function saveEmployee(){
+ const id=document.getElementById('empId').value.trim(), name=document.getElementById('empName').value.trim();
+ if(!id||!name)return alert('Please complete the required fields.');
+ const data={id,name,dept:document.getElementById('empDept').value.trim(),position:document.getElementById('empPosition').value.trim(),salary:Number(document.getElementById('empSalary').value||0),status:document.getElementById('empStatus').value};
+ const old=document.getElementById('empEditId').value;
+ if(old){const i=db.employees.findIndex(e=>e.id===old);if(i>=0)db.employees[i]=data}
+ else {if(db.employees.some(e=>e.id===id))return alert('Employee ID already exists.');db.employees.push(data)}
+ persist();closeModal('employeeModal');renderEmployees();renderDashboard();
+}
+function deleteEmployee(id){
+ if(!confirm('Delete this employee record?'))return;
+ db.employees=db.employees.filter(e=>e.id!==id);persist();renderEmployees();renderDashboard();
+}
+function getAtt(empId){
+ let a=db.attendance.find(a=>a.date===today()&&a.empId===empId);
+ if(!a){a={date:today(),empId,status:'Absent',in:'',out:''};db.attendance.push(a)}
+ return a;
+}
+function renderAttendance(){
+ const q=(document.getElementById('attendanceSearch')?.value||'').toLowerCase();
+ const active=db.employees.filter(e=>e.status==='Active' && (e.name+' '+e.dept).toLowerCase().includes(q));
+ document.getElementById('attendanceTable').innerHTML=active.map(e=>{
+   const a=getAtt(e.id);let hours='—';
+   if(a.in&&a.out){hours='8.0 hrs'}
+   return `<tr><td><strong>${esc(e.name)}</strong><div class="muted">${esc(e.id)}</div></td><td>${esc(e.dept)}</td><td>${esc(a.in||'—')}</td><td>${esc(a.out||'—')}</td><td>${hours}</td><td>${statusTag(a.status)}</td>
+   <td><div class="actions"><button class="btn btn-success btn-sm" onclick="clockIn('${e.id}')">Time In</button><button class="btn btn-warning btn-sm" onclick="clockOut('${e.id}')">Time Out</button></div></td></tr>`;
+ }).join('')||`<tr><td colspan="7" class="empty">No active employees found.</td></tr>`;
+ persist();
+}
+function clockIn(id){const a=getAtt(id);if(a.in)return alert('Time-in is already recorded.');a.in=timeNow();a.status='Present';persist();renderAttendance();renderDashboard()}
+function clockOut(id){const a=getAtt(id);if(!a.in)return alert('Please record Time In first.');if(a.out)return alert('Time-out is already recorded.');a.out=timeNow();persist();renderAttendance();renderDashboard()}
+function renderLeaves(){
+ document.getElementById('leaveTable').innerHTML=db.leaves.map(l=>`<tr><td>${esc(l.id)}</td><td>${esc(emp(l.empId).name)}</td><td>${esc(l.type)}</td><td>${esc(l.start)} to ${esc(l.end)}</td><td>${esc(l.reason||'—')}</td><td>${statusTag(l.status)}</td>
+ <td>${l.status==='Pending'?`<div class="actions"><button class="btn btn-success btn-sm" onclick="updateLeave('${l.id}','Approved')">Approve</button><button class="btn btn-danger btn-sm" onclick="updateLeave('${l.id}','Rejected')">Reject</button></div>`:'—'}</td></tr>`).join('')||`<tr><td colspan="7" class="empty">No leave requests.</td></tr>`;
+}
+function openLeaveModal(){fillEmployeeSelect('leaveEmployee');document.getElementById('leaveStart').value=today();document.getElementById('leaveEnd').value=today();document.getElementById('leaveReason').value='';openModal('leaveModal')}
+function saveLeave(){
+ const id='LR-'+String(db.leaves.length+1).padStart(3,'0');
+ db.leaves.push({id,empId:document.getElementById('leaveEmployee').value,type:document.getElementById('leaveType').value,start:document.getElementById('leaveStart').value,end:document.getElementById('leaveEnd').value,reason:document.getElementById('leaveReason').value,status:'Pending'});
+ persist();closeModal('leaveModal');renderLeaves();renderDashboard();
+}
+function updateLeave(id,status){const l=db.leaves.find(x=>x.id===id);if(l){l.status=status;persist();renderLeaves();renderDashboard()}}
+function renderOvertime(){
+ document.getElementById('overtimeTable').innerHTML=db.overtime.map(o=>`<tr><td>${esc(o.date)}</td><td>${esc(emp(o.empId).name)}</td><td>${o.hours}</td><td>${money(o.rate)}</td><td>${money(o.hours*o.rate)}</td><td>${statusTag(o.status)}</td></tr>`).join('')||`<tr><td colspan="6" class="empty">No overtime records.</td></tr>`;
+}
+function openOvertimeModal(){fillEmployeeSelect('otEmployee');document.getElementById('otDate').value=today();document.getElementById('otHours').value='';const e=emp(document.getElementById('otEmployee').value);document.getElementById('otRate').value=Math.round((e.salary||0)/160*1.25);openModal('overtimeModal')}
+function saveOvertime(){
+ const hours=Number(document.getElementById('otHours').value||0),rate=Number(document.getElementById('otRate').value||0);
+ if(hours<=0)return alert('Enter valid overtime hours.');
+ db.overtime.push({date:document.getElementById('otDate').value,empId:document.getElementById('otEmployee').value,hours,rate,status:'Pending'});
+ persist();closeModal('overtimeModal');renderOvertime();renderReports();
+}
+function calculatePayroll(){renderPayroll();alert('Payroll recalculated using the demo formula.')}
+function renderPayroll(){
+ fillEmployeeSelect('payrollEmployee');const id=document.getElementById('payrollEmployee').value||db.employees[0]?.id;if(!id){document.getElementById('payrollContent').innerHTML='<div class="empty">Add an employee first.</div>';return}
+ document.getElementById('payrollEmployee').value=id;const e=emp(id);
+ const basic=Number(e.salary||0);const ot=db.overtime.filter(o=>o.empId===id&&o.status!=='Rejected').reduce((s,o)=>s+o.hours*o.rate,0);
+ const benefits=db.benefits.filter(b=>b.empId===id&&b.status==='Active').reduce((s,b)=>s+(b.frequency==='Monthly'?Number(b.amount):0),0);
+ const tax=Math.max(0,(basic+ot)*.05);const other=250;const gross=basic+ot+benefits;const deductions=tax+other;const net=gross-deductions;
+ document.getElementById('payrollContent').innerHTML=`<div class="grid two-col">
+ <div><div class="section-head" style="margin-top:0"><h2>${esc(e.name)}</h2>${statusTag(e.status)}</div>
+ <div class="payline"><span>Employee ID</span><strong>${esc(e.id)}</strong></div>
+ <div class="payline"><span>Department</span><span>${esc(e.dept)}</span></div>
+ <div class="payline"><span>Position</span><span>${esc(e.position)}</span></div></div>
+ <div><div class="card" style="background:#f8fafc"><div class="muted">Estimated Net Pay</div><div style="font-size:30px;font-weight:800;margin-top:5px">${money(net)}</div></div></div>
+ </div>
+ <div class="section-head"><h2>Payroll Breakdown</h2></div>
+ <div class="table-wrap"><table><tbody>
+ <tr><td>Basic Salary</td><td style="text-align:right">${money(basic)}</td></tr>
+ <tr><td>Overtime Pay</td><td style="text-align:right">${money(ot)}</td></tr>
+ <tr><td>Benefits / Allowances</td><td style="text-align:right">${money(benefits)}</td></tr>
+ <tr><td><strong>Gross Pay</strong></td><td style="text-align:right"><strong>${money(gross)}</strong></td></tr>
+ <tr><td>Demo Tax / Withholding</td><td style="text-align:right">${money(tax)}</td></tr>
+ <tr><td>Other Demo Deduction</td><td style="text-align:right">${money(other)}</td></tr>
+ <tr><td><strong>Net Pay</strong></td><td style="text-align:right"><strong>${money(net)}</strong></td></tr>
+ </tbody></table></div>
+ <div class="notice" style="margin-top:15px">The tax and deduction figures above are intentionally simplified sample values for the school activity.</div>`;
+}
+function printCurrentPayslip(){
+ const id=document.getElementById('payrollEmployee').value||db.employees[0]?.id;if(!id)return;
+ const e=emp(id),ot=db.overtime.filter(o=>o.empId===id&&o.status!=='Rejected').reduce((s,o)=>s+o.hours*o.rate,0),benefits=db.benefits.filter(b=>b.empId===id&&b.status==='Active').reduce((s,b)=>s+(b.frequency==='Monthly'?Number(b.amount):0),0);
+ const basic=Number(e.salary||0),gross=basic+ot+benefits,tax=Math.max(0,gross*.05),other=250,net=gross-tax-other;
+ document.getElementById('payslipArea').innerHTML=`<div class="payslip"><h2>EMPLOYEE PAYSLIP</h2><div class="company">Employee Attendance Monitoring and Payroll Management System<br>Demo / Academic Activity</div>
+ <div class="payline"><span>Employee</span><strong>${esc(e.name)}</strong></div><div class="payline"><span>Employee ID</span><span>${esc(e.id)}</span></div><div class="payline"><span>Department</span><span>${esc(e.dept)}</span></div><div class="payline"><span>Payroll Period</span><span>Current Month</span></div>
+ <h3>Earnings</h3><div class="payline"><span>Basic Salary</span><span>${money(basic)}</span></div><div class="payline"><span>Overtime Pay</span><span>${money(ot)}</span></div><div class="payline"><span>Benefits / Allowances</span><span>${money(benefits)}</span></div><div class="payline"><strong>Gross Pay</strong><strong>${money(gross)}</strong></div>
+ <h3>Deductions</h3><div class="payline"><span>Demo Tax / Withholding</span><span>${money(tax)}</span></div><div class="payline"><span>Other Demo Deduction</span><span>${money(other)}</span></div><div class="payline total"><span>NET PAY</span><span>${money(net)}</span></div>
+ <p style="font-size:10px;color:#777;margin-top:28px">This payslip is a prototype for academic presentation only. Figures are sample values.</p></div>`;
+ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active','print-page'));document.getElementById('page-payslip').classList.add('active','print-page');document.getElementById('pageTitle').textContent='Payslip';
+ setTimeout(()=>window.print(),250);
+}
+function renderBenefits(){
+ document.getElementById('benefitTable').innerHTML=db.benefits.map((b,i)=>`<tr><td>${esc(emp(b.empId).name)}</td><td>${esc(b.name)}</td><td>${money(b.amount)}</td><td>${esc(b.frequency)}</td><td>${statusTag(b.status)}</td><td><button class="btn btn-danger btn-sm" onclick="deleteBenefit(${i})">Delete</button></td></tr>`).join('')||`<tr><td colspan="6" class="empty">No benefits records.</td></tr>`;
+}
+function openBenefitModal(){fillEmployeeSelect('benefitEmployee');document.getElementById('benefitName').value='';document.getElementById('benefitAmount').value='';openModal('benefitModal')}
+function saveBenefit(){
+ const name=document.getElementById('benefitName').value.trim();if(!name)return alert('Enter a benefit name.');
+ db.benefits.push({empId:document.getElementById('benefitEmployee').value,name,amount:Number(document.getElementById('benefitAmount').value||0),frequency:document.getElementById('benefitFrequency').value,status:'Active'});
+ persist();closeModal('benefitModal');renderBenefits();renderPayroll();
+}
+function deleteBenefit(i){db.benefits.splice(i,1);persist();renderBenefits();renderPayroll()}
+function renderCostCenters(){
+ document.getElementById('costCenterTable').innerHTML=db.costCenters.map(c=>`<tr><td>${esc(c.code)}</td><td><strong>${esc(c.name)}</strong></td><td>${esc(c.dept)}</td><td>${money(c.budget)}</td><td>${statusTag(c.status)}</td></tr>`).join('')||`<tr><td colspan="5" class="empty">No cost centers.</td></tr>`;
+}
+function openCostCenterModal(){['ccCode','ccName','ccDept','ccBudget'].forEach(id=>document.getElementById(id).value='');openModal('costCenterModal')}
+function saveCostCenter(){
+ const code=document.getElementById('ccCode').value.trim(),name=document.getElementById('ccName').value.trim();if(!code||!name)return alert('Complete the required fields.');
+ db.costCenters.push({code,name,dept:document.getElementById('ccDept').value.trim(),budget:Number(document.getElementById('ccBudget').value||0),status:'Active'});
+ persist();closeModal('costCenterModal');renderCostCenters();
+}
+function renderReports(){
+ const total=db.employees.filter(e=>e.status==='Active').length,present=db.attendance.filter(a=>a.date===today()&&a.status==='Present').length;
+ const rate=total?Math.round(present/total*100):0;document.getElementById('reportAttendanceRate').textContent=rate+'%';document.getElementById('reportAttendanceBar').style.width=rate+'%';
+ document.getElementById('reportApprovedLeave').textContent=db.leaves.filter(l=>l.status==='Approved').length;
+ document.getElementById('reportOvertime').textContent=db.overtime.reduce((s,o)=>s+Number(o.hours||0),0).toFixed(1);
+ const payroll=db.employees.reduce((s,e)=>s+Number(e.salary||0),0);document.getElementById('reportPayroll').textContent=money(payroll);
+ document.getElementById('reportTable').innerHTML=db.employees.map(e=>{const a=db.attendance.filter(x=>x.empId===e.id);const p=a.filter(x=>x.status==='Present').length;const ab=a.filter(x=>x.status==='Absent').length;const r=(p+ab)?Math.round(p/(p+ab)*100):0;return `<tr><td>${esc(e.name)}</td><td>${p}</td><td>${ab}</td><td>${r}%</td></tr>`}).join('');
+}
+document.querySelectorAll('.modal-wrap').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+document.getElementById('otEmployee').addEventListener('change',()=>{const e=emp(document.getElementById('otEmployee').value);document.getElementById('otRate').value=Math.round((e.salary||0)/160*1.25)});
+renderDashboard();
+</script>
+</body>
+</html>
