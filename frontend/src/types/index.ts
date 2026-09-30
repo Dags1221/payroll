@@ -231,3 +231,95 @@ export interface AppNotification {
   link?: string;
   createdAt: string;
 }
+
+export interface LoanRecord {
+  id: string;
+  empId: string;
+  employeeName: string;
+  loanType: 'SSS Salary Loan' | 'Pag-IBIG Calamity Loan' | 'Company Cash Advance' | 'Emergency Assistance';
+  principal: number;
+  interestRate: number;
+  termMonths: number;
+  monthlyAmortization: number;
+  remainingBalance: number;
+  startDate: string;
+  status: 'Active' | 'Fully Paid' | 'Defaulted';
+  notes?: string;
+  createdAt: string;
+}
+
+export interface ShiftRoster {
+  id: string;
+  empId: string;
+  employeeName: string;
+  department: string;
+  monday: string;
+  tuesday: string;
+  wednesday: string;
+  thursday: string;
+  friday: string;
+  saturday: string;
+  sunday: string;
+  effectiveWeek: string;
+}
+
+export interface ThirteenthMonthProjection {
+  empId: string;
+  employeeName: string;
+  department: string;
+  monthlySalary: number;
+  monthsWorkedYtd: number;
+  projected13thMonth: number;
+  taxExemptAmount: number;
+  taxableAmount: number;
+  status: 'Compliant' | 'Pending Final Cutoff';
+}
+
+export interface BIR2316Data {
+  year: number;
+  employee: {
+    id: string;
+    name: string;
+    tin: string;
+    address: string;
+    sssNo: string;
+    philHealthNo: string;
+    pagIbigNo: string;
+  };
+  employer: {
+    name: string;
+    tin: string;
+    address: string;
+    rdoCode: string;
+  };
+  grossCompensation: number;
+  nonTaxable13thMonth: number;
+  nonTaxableMandatoryContributions: number;
+  totalNonTaxableCompensation: number;
+  taxableCompensation: number;
+  taxDue: number;
+  taxWithheld: number;
+}
+
+export interface PayrollAnomaly {
+  id: string;
+  empId: string;
+  employeeName: string;
+  type: 'OVERTIME_SPIKE' | 'NEGATIVE_NET_PAY' | 'WAGE_DISCREPANCY' | 'ABSENCE_DISCREPANCY' | 'MISSING_STATUTORY';
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  title: string;
+  description: string;
+  suggestedAction: string;
+}
+
+export interface EmergencyBroadcast {
+  id: string;
+  title: string;
+  message: string;
+  category: 'WEATHER_SUSPENSION' | 'OFFICE_CLOSURE' | 'PAYROLL_CUTOFF' | 'SECURITY_ALERT';
+  urgency: 'URGENT' | 'HIGH' | 'NORMAL';
+  sender: string;
+  timestamp: string;
+  active: boolean;
+}
+

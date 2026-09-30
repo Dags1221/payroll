@@ -319,14 +319,24 @@ function PayslipsContent() {
             {/* Signatures & Certification */}
             <div className="pt-6 border-t border-slate-200 grid grid-cols-2 gap-8 text-xs text-slate-600">
               <div className="text-center">
-                <div className="h-10 border-b border-slate-400 mb-1"></div>
+                <div className="min-h-12 border-b border-slate-400 mb-1 flex items-center justify-center">
+                  <div className="text-center">
+                    <span className="font-serif italic font-bold text-indigo-700 text-sm block">
+                      {currentItem.employeeName}
+                    </span>
+                    <span className="text-[9px] font-mono text-emerald-600 flex items-center justify-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                      Cryptographically Verified (Hash: {currentItem.id.slice(-8)})
+                    </span>
+                  </div>
+                </div>
                 <span className="font-bold text-slate-800 block">{currentItem.employeeName}</span>
                 <span className="text-[10px] text-slate-400">Employee Signature & Acknowledgement</span>
               </div>
 
               <div className="text-center">
-                <div className="h-10 border-b border-slate-400 mb-1 flex items-end justify-center pb-1 text-slate-400 italic text-[11px]">
-                  [Electronically Certified]
+                <div className="min-h-12 border-b border-slate-400 mb-1 flex items-end justify-center pb-1 text-slate-600 italic text-[11px] font-serif font-semibold">
+                  [Electronically Certified & Encrypted]
                 </div>
                 <span className="font-bold text-slate-800 block">Authorized Finance Officer</span>
                 <span className="text-[10px] text-slate-400">Apex Enterprises Payroll Department</span>

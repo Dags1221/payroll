@@ -8,7 +8,7 @@ import { NotificationDropdown } from './NotificationDropdown';
 import { GlobalSearchModal } from './GlobalSearchModal';
 import { apiRequest } from '../lib/api';
 
-export function Navbar({ title }: { title: string }) {
+export function Navbar({ title = 'Executive Dashboard' }: { title?: string }) {
   const { user, role, switchRole, logout } = useAuth();
   const { success, error } = useToast();
   const [searchOpen, setSearchOpen] = useState(false);

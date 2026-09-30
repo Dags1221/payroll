@@ -10,7 +10,15 @@ interface AttendanceTrendItem {
   absent: number;
 }
 
-export function AttendanceTrendChart({ data }: { data: AttendanceTrendItem[] }) {
+const DEFAULT_ATTENDANCE_TREND: AttendanceTrendItem[] = [
+  { day: 'Mon', present: 9, late: 1, absent: 0 },
+  { day: 'Tue', present: 8, late: 1, absent: 1 },
+  { day: 'Wed', present: 10, late: 0, absent: 0 },
+  { day: 'Thu', present: 8, late: 2, absent: 0 },
+  { day: 'Fri', present: 7, late: 1, absent: 2 },
+];
+
+export function AttendanceTrendChart({ data = DEFAULT_ATTENDANCE_TREND }: { data?: AttendanceTrendItem[] }) {
   if (!data || data.length === 0) {
     return <div className="p-8 text-center text-xs text-slate-400">No attendance data to plot.</div>;
   }
@@ -80,7 +88,15 @@ interface DeptPayrollItem {
   budget: number;
 }
 
-export function DepartmentPayrollChart({ data }: { data: DeptPayrollItem[] }) {
+const DEFAULT_DEPT_PAYROLL: DeptPayrollItem[] = [
+  { department: 'Engineering', allocated: 285000, budget: 350000 },
+  { department: 'Operations', allocated: 195000, budget: 250000 },
+  { department: 'Finance', allocated: 140000, budget: 180000 },
+  { department: 'Human Resources', allocated: 110000, budget: 150000 },
+  { department: 'Marketing', allocated: 95000, budget: 120000 },
+];
+
+export function DepartmentPayrollChart({ data = DEFAULT_DEPT_PAYROLL }: { data?: DeptPayrollItem[] }) {
   if (!data || data.length === 0) {
     return <div className="p-8 text-center text-xs text-slate-400">No cost center allocations.</div>;
   }

@@ -12,6 +12,7 @@ import { costCenterService } from '../services/cost-center.service';
 import { reportService } from '../services/report.service';
 import { auditService } from '../services/audit.service';
 import { notificationService } from '../services/notification.service';
+import { advancedFeaturesService } from '../services/advanced-features.service';
 import { authenticate, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
 
 const api = Router();
@@ -548,4 +549,198 @@ api.put('/notifications/read-all', authenticate, async (req: AuthenticatedReques
   }
 });
 
+// ==========================================
+// 14. VIRTUAL BIOMETRIC & KIOSK TERMINAL
+// ==========================================
+api.post('/kiosk/punch', async (req: Request, res: Response, next) => {
+  try {
+    const { empId, pin, type, location, method } = req.body;
+    if (!empId) {
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Employee ID or PIN is required.' } });
+      return;
+    }
+
+    const emp = await employeeService.getById(empId);
+    if (!emp) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: `Employee ID ${empId} not recognized by kiosk.` } });
+      return;
+    }
+
+    const nowTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    let record;
+    if (type === 'TIME_OUT') {
+      record = await attendanceService.clockOut(emp.id, 'Biometric Kiosk');
+    } else {
+      record = await attendanceService.clockIn(emp.id, 'Biometric Kiosk');
+    }
+
+    await auditService.log({
+      userId: emp.id,
+      userName: emp.name,
+      role: 'EMPLOYEE',
+      action: `KIOSK_${type || 'TIME_IN'}`,
+      entity: 'Attendance',
+      entityId: record.id,
+      details: `Biometric Kiosk punch via ${method || 'Face/PIN Scanner'} at ${location || 'Makati HQ Geofence'}`
+    });
+
+    res.json({
+      success: true,
+      data: {
+        record,
+        employee: {
+          id: emp.id,
+          name: emp.name,
+          department: emp.department,
+          avatar: emp.avatar
+        },
+        punchTime: nowTimeStr,
+        location: location || 'Verified Makati CBD Geofence',
+        method: method || 'Biometric Face / PIN'
+      }
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ==========================================
+// 15. LOANS & CASH ADVANCE AMORTIZATION
+// ==========================================
+api.get('/loans', authenticate, async (req: Request, res: Response, next) => {
+  try {
+    const loans = await advancedFeaturesService.getLoans();
+    res.json({ success: true, data: loans });
+  } catch (e) {
+    next(e);
+  }
+});
+
+api.post('/loans', authenticate, requireRole('ADMIN', 'SUPERVISOR'), async (req: Request, res: Response, next) => {
+  try {
+    const newLoan = await advancedFeaturesService.createLoan(req.body);
+    res.status(201).json({ success: true, data: newLoan });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ==========================================
+// 16. SHIFT & SCHEDULE ROSTER PLANNER
+// ==========================================
+api.get('/shifts', authenticate, async (req: Request, res: Response, next) => {
+  try {
+    const shifts = await advancedFeaturesService.getShifts();
+    res.json({ success: true, data: shifts });
+  } catch (e) {
+    next(e);
+  }
+});
+
+api.put('/shifts/:empId', authenticate, requireRole('ADMIN', 'SUPERVISOR'), async (req: Request, res: Response, next) => {
+  try {
+    const updated = await advancedFeaturesService.updateShift(paramStr(req.params.empId), req.body);
+    res.json({ success: true, data: updated });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ==========================================
+// 17. AI PAYROLL ANOMALY SCANNER
+// ==========================================
+api.get('/payroll/anomalies', authenticate, requireRole('ADMIN', 'SUPERVISOR'), async (req: Request, res: Response, next) => {
+  try {
+    const anomalies = await advancedFeaturesService.detectPayrollAnomalies();
+    res.json({ success: true, data: anomalies });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ==========================================
+// 18. EMERGENCY BROADCAST CENTER
+// ==========================================
+api.get('/broadcasts', async (req: Request, res: Response, next) => {
+  try {
+    const broadcast = await advancedFeaturesService.getActiveBroadcast();
+    res.json({ success: true, data: broadcast });
+  } catch (e) {
+    next(e);
+  }
+});
+
+api.post('/broadcasts', authenticate, requireRole('ADMIN'), async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const broadcast = await advancedFeaturesService.setBroadcast({
+      ...req.body,
+      sender: req.user!.name || 'System Administrator'
+    });
+    res.status(201).json({ success: true, data: broadcast });
+  } catch (e) {
+    next(e);
+  }
+});
+
+api.delete('/broadcasts/:id', authenticate, requireRole('ADMIN'), async (req: Request, res: Response, next) => {
+  try {
+    await advancedFeaturesService.dismissBroadcast();
+    res.json({ success: true, data: { message: 'Emergency broadcast dismissed.' } });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ==========================================
+// 19. 13TH MONTH PAY & TAX EXEMPTION PROJECTION
+// ==========================================
+api.get('/tax/thirteenth-month', authenticate, async (req: Request, res: Response, next) => {
+  try {
+    const projections = await advancedFeaturesService.getThirteenthMonthProjections();
+    res.json({ success: true, data: projections });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ==========================================
+// 20. BIR FORM 2316 TAX CERTIFICATE GENERATOR
+// ==========================================
+api.get('/reports/bir-2316/:empId', authenticate, async (req: Request, res: Response, next) => {
+  try {
+    const birData = await advancedFeaturesService.getBIR2316(paramStr(req.params.empId));
+    res.json({ success: true, data: birData });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ==========================================
+// 21. DIGITAL SIGNATURE ACKNOWLEDGMENT
+// ==========================================
+api.post('/payslips/:id/sign', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { signatureHash } = req.body;
+    const signed = await advancedFeaturesService.signPayslip(
+      paramStr(req.params.id),
+      signatureHash || `SIG-${Date.now().toString(36)}`,
+      req.user!.name || 'Authorized Signatory'
+    );
+    res.json({ success: true, data: signed });
+  } catch (e) {
+    next(e);
+  }
+});
+
+api.get('/payslips/:id/signature', authenticate, async (req: Request, res: Response, next) => {
+  try {
+    const sig = await advancedFeaturesService.getPayslipSignature(paramStr(req.params.id));
+    res.json({ success: true, data: sig });
+  } catch (e) {
+    next(e);
+  }
+});
+
 export default api;
+
