@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '../context/AuthContext';
 import { ToastProvider } from '../context/ToastContext';
-import { Sidebar } from '../components/Sidebar';
+import { AppShell } from '../components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Apex Payroll | Enterprise Workforce & Attendance Management',
@@ -15,16 +15,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased">
+    <html lang="en" className="dark">
+      <body className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased selection:bg-indigo-500 selection:text-white">
         <AuthProvider>
           <ToastProvider>
-            <div className="flex min-h-screen">
-              <Sidebar />
-              <div className="flex-1 flex flex-col min-w-0">
-                {children}
-              </div>
-            </div>
+            <AppShell>
+              {children}
+            </AppShell>
           </ToastProvider>
         </AuthProvider>
       </body>

@@ -28,19 +28,23 @@ const defaultAdminUser: User = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(defaultAdminUser);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
     // Attempt auto-login or read from localStorage if present
     const savedUser = localStorage.getItem('payroll_demo_user');
-    if (savedUser) {
+    const token = localStorage.getItem('payroll_auth_token');
+    if (savedUser && token) {
       try {
         setUser(JSON.parse(savedUser));
       } catch {
-        setUser(defaultAdminUser);
+        setUser(null);
       }
+    } else {
+      setUser(null);
     }
+    setIsLoading(false);
   }, []);
 
   const login = async (email: string, passwordPlain: string): Promise<boolean> => {
@@ -70,6 +74,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     removeAuthToken();
     localStorage.removeItem('payroll_demo_user');
     setUser(null);
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
   };
 
   const switchRole = (newRole: Role, employeeId = 'EMP-001', name = 'Juan Dela Cruz') => {
@@ -98,10 +105,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
     }
     setUser(switched);
+    setAuthToken(`demo-session-${newRole.toLowerCase()}-token`);
     localStorage.setItem('payroll_demo_user', JSON.stringify(switched));
   };
 
-  const role = user?.role || 'ADMIN';
+  const role = user?.role || 'EMPLOYEE';
   const isAdmin = role === 'ADMIN';
   const isSupervisor = role === 'SUPERVISOR';
   const isEmployee = role === 'EMPLOYEE';

@@ -62,7 +62,7 @@ export default function MasterHomePage() {
   const { success, error, info } = useToast();
 
   // Mode: 'landing' (Public Showcase) or 'cockpit' (Executive Dashboard)
-  const [viewMode, setViewMode] = useState<'landing' | 'cockpit'>('landing');
+  const [viewMode, setViewMode] = useState<'landing' | 'cockpit'>('cockpit');
 
   // Modal States for the 10 Features
   const [kioskOpen, setKioskOpen] = useState(false);
