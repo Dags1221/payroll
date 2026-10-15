@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { Database } from '../db/database';
 import { authService } from '../services/auth.service';
 import { employeeService } from '../services/employee.service';
 import { attendanceService } from '../services/attendance.service';
@@ -62,6 +63,16 @@ api.post('/auth/change-password', authenticate, async (req: AuthenticatedRequest
   }
 });
 
+api.get('/users', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const users = await Database.getInstance().getUsers();
+    const safeUsers = users.map(({ passwordHash, ...u }) => u);
+    res.json({ success: true, data: safeUsers });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ==========================================
 // 2. EMPLOYEES
 // ==========================================
@@ -114,6 +125,15 @@ api.delete('/employees/:id', authenticate, requireRole('ADMIN'), async (req: Aut
   }
 });
 
+api.post('/employees/generate-account', authenticate, requireRole('ADMIN'), async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const result = await employeeService.generateAccount(req.body, req.user?.name);
+    res.status(201).json({ success: true, data: result });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ==========================================
 // 3. ATTENDANCE MONITORING
 // ==========================================
@@ -122,6 +142,27 @@ api.get('/attendance', authenticate, async (req: Request, res: Response, next) =
     const { date, empId } = req.query as { date?: string; empId?: string };
     const attendance = await attendanceService.getAttendance({ date, empId });
     res.json({ success: true, data: attendance });
+  } catch (e) {
+    next(e);
+  }
+});
+
+api.get('/attendance/dashboard', authenticate, async (req: Request, res: Response, next) => {
+  try {
+    const { date } = req.query as { date?: string };
+    const dashboard = await attendanceService.getAttendanceDashboard(date);
+    res.json({ success: true, data: dashboard });
+  } catch (e) {
+    next(e);
+  }
+});
+
+api.post('/attendance/qr-punch', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { empId, type } = req.body;
+    const targetEmpId = empId || req.user?.employeeId || 'EMP-001';
+    const result = await attendanceService.qrPunch(targetEmpId, type, req.user?.name || 'QR Terminal');
+    res.json({ success: true, data: result });
   } catch (e) {
     next(e);
   }

@@ -37,7 +37,9 @@ import {
   BarChart3,
   Sliders,
   Globe2,
-  Lock
+  Lock,
+  QrCode,
+  UserPlus
 } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { StatCard } from '../components/StatCard';
@@ -49,7 +51,6 @@ import { soundFx } from '../lib/sound';
 import { formatCurrency, CurrencyCode } from '../lib/currency';
 
 // Import Feature Modals
-import { BiometricKioskModal } from '../components/BiometricKioskModal';
 import { ThirteenthMonthModal } from '../components/ThirteenthMonthModal';
 import { LoanManagerModal } from '../components/LoanManagerModal';
 import { AnomalyDetectorModal } from '../components/AnomalyDetectorModal';
@@ -64,8 +65,7 @@ export default function MasterHomePage() {
   // Mode: 'landing' (Public Showcase) or 'cockpit' (Executive Dashboard)
   const [viewMode, setViewMode] = useState<'landing' | 'cockpit'>('cockpit');
 
-  // Modal States for the 10 Features
-  const [kioskOpen, setKioskOpen] = useState(false);
+  // Modal States for Features
   const [thirteenthOpen, setThirteenthOpen] = useState(false);
   const [loanOpen, setLoanOpen] = useState(false);
   const [anomalyOpen, setAnomalyOpen] = useState(false);
@@ -347,16 +347,13 @@ export default function MasterHomePage() {
                 <span>Launch Executive Cockpit</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
-              <button
-                onClick={() => {
-                  soundFx.playBiometricScan();
-                  setKioskOpen(true);
-                }}
+              <Link
+                href="/qr-scanner"
                 className="px-6 py-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-indigo-500/50 text-slate-200 font-bold text-sm sm:text-base transition flex items-center gap-2"
               >
-                <ScanFace className="w-5 h-5 text-cyan-400" />
-                <span>Test Biometric Kiosk</span>
-              </button>
+                <QrCode className="w-5 h-5 text-indigo-400" />
+                <span>QR Attendance Scanner</span>
+              </Link>
             </div>
 
             {/* Hero Live Telemetry Badges */}
@@ -550,22 +547,23 @@ export default function MasterHomePage() {
               </div>
 
               {/* Feature 2: Biometric Kiosk Terminal */}
-              <div
-                onClick={() => setKioskOpen(true)}
-                className="bg-slate-900/60 border border-slate-800 hover:border-cyan-500/50 p-6 rounded-3xl transition group cursor-pointer"
+              {/* Feature 2: QR Code Attendance System */}
+              <Link
+                href="/qr-scanner"
+                className="bg-slate-900/60 border border-slate-800 hover:border-indigo-500/50 p-6 rounded-3xl transition group cursor-pointer block"
               >
-                <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 mb-4 group-hover:scale-110 transition">
-                  <ScanFace className="w-6 h-6" />
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mb-4 group-hover:scale-110 transition">
+                  <QrCode className="w-6 h-6" />
                 </div>
-                <span className="text-[10px] font-bold uppercase text-cyan-400 tracking-wider">Feature 2 • Hardware Simulator</span>
-                <h3 className="text-lg font-bold text-white mt-1">Virtual Biometric Kiosk Terminal</h3>
+                <span className="text-[10px] font-bold uppercase text-indigo-400 tracking-wider">Feature 2 • Mobile & Web QR Attendance</span>
+                <h3 className="text-lg font-bold text-white mt-1">QR Code Attendance Scanner & Badges</h3>
                 <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-                  Touch-ready interactive terminal with animated face mesh scanning, security PIN keypad, geofence validation, and live audio chime confirmation.
+                  Real-time contactless time logging with live camera viewfinder, digital employee QR badge generation, automatic time-in/out detection, and roster sync.
                 </p>
-                <div className="mt-4 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-cyan-400">
-                  <span className="flex items-center gap-1">Launch Terminal Simulator <ArrowRight className="w-3.5 h-3.5" /></span>
+                <div className="mt-4 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-indigo-400">
+                  <span className="flex items-center gap-1">Open QR Attendance Scanner <ArrowRight className="w-3.5 h-3.5" /></span>
                 </div>
-              </div>
+              </Link>
 
               {/* Feature 3: 13th Month Pay Calculator */}
               <div
@@ -855,16 +853,33 @@ export default function MasterHomePage() {
                 <span className="text-[11px] text-slate-400">10 Instant Subsystems</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => {
-                    soundFx.playBiometricScan();
-                    setKioskOpen(true);
-                  }}
-                  className="px-3 py-2 rounded-xl bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 text-cyan-800 text-xs font-bold flex items-center gap-1.5 transition"
+                <Link
+                  href="/qr-scanner"
+                  className="px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 text-xs font-bold flex items-center gap-1.5 transition"
                 >
-                  <ScanFace className="w-4 h-4 text-cyan-600" />
-                  Biometric Kiosk
-                </button>
+                  <QrCode className="w-4 h-4 text-indigo-600" />
+                  QR Attendance Scanner
+                </Link>
+
+                {isAdmin && (
+                  <>
+                    <Link
+                      href="/account-generator"
+                      className="px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 text-xs font-bold flex items-center gap-1.5 transition"
+                    >
+                      <UserPlus className="w-4 h-4 text-purple-600" />
+                      Account Generator
+                    </Link>
+
+                    <Link
+                      href="/qr-generator"
+                      className="px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 text-xs font-bold flex items-center gap-1.5 transition"
+                    >
+                      <QrCode className="w-4 h-4 text-blue-600" />
+                      QR Generator
+                    </Link>
+                  </>
+                )}
 
                 <button
                   onClick={() => setThirteenthOpen(true)}
@@ -1003,9 +1018,8 @@ export default function MasterHomePage() {
       )}
 
       {/* ============================================================== */}
-      {/* GLOBAL MODALS (FOR THE 10 NEW FEATURES)                        */}
+      {/* GLOBAL MODALS (FOR ADVANCED FEATURES)                          */}
       {/* ============================================================== */}
-      <BiometricKioskModal isOpen={kioskOpen} onClose={() => setKioskOpen(false)} onSuccess={fetchDashboard} />
       <ThirteenthMonthModal isOpen={thirteenthOpen} onClose={() => setThirteenthOpen(false)} />
       <LoanManagerModal isOpen={loanOpen} onClose={() => setLoanOpen(false)} />
       <AnomalyDetectorModal isOpen={anomalyOpen} onClose={() => setAnomalyOpen(false)} />

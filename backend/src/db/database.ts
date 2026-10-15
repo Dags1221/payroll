@@ -115,6 +115,20 @@ export class Database {
     return this.store.users.find(u => u.id === id);
   }
 
+  public async findUserByEmployeeId(empId: string): Promise<User | undefined> {
+    return this.store.users.find(u => u.employeeId === empId);
+  }
+
+  public async createUser(user: User): Promise<User> {
+    const existing = this.store.users.find(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
+    if (existing) {
+      throw new Error(`User with email ${user.email} or ID ${user.id} already exists.`);
+    }
+    this.store.users.push(user);
+    this.saveStore();
+    return user;
+  }
+
   // --- Employees ---
   public async getEmployees(): Promise<Employee[]> {
     return this.store.employees;

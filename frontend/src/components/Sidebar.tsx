@@ -16,30 +16,53 @@ import {
   HeartHandshake,
   PieChart,
   BarChart3,
-  ShieldAlert,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  UserPlus,
+  QrCode,
+  ScanLine
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { role, isAdmin } = useAuth();
+  const { role, isAdmin, isSupervisor, isEmployee } = useAuth();
 
   const navItems = [
     { label: 'Dashboard', href: '/', icon: LayoutDashboard },
-    ...(isAdmin ? [{ label: 'Employees', href: '/employees', icon: Users }] : []),
-    { label: 'Attendance', href: '/attendance', icon: Clock },
-    ...(isAdmin ? [{ label: 'Absenteeism Detection', href: '/absenteeism', icon: UserX }] : []),
-    { label: 'Leave Requests', href: '/leave', icon: CalendarDays },
+
+    // Admin Account & QR Management
+    ...(isAdmin ? [
+      { label: 'Employees', href: '/employees', icon: Users },
+      { label: 'Employee Account Generator', href: '/account-generator', icon: UserPlus },
+      { label: 'QR Code Generator', href: '/qr-generator', icon: QrCode },
+    ] : []),
+
+    // Attendance: QR Scanner for Employee; Rich Attendance Dashboard for Admin/Supervisor
+    ...(isEmployee
+      ? [{ label: 'QR Attendance Scanner', href: '/qr-scanner', icon: ScanLine }]
+      : [{ label: 'Attendance Dashboard', href: '/attendance', icon: Clock }]),
+
+    ...(isAdmin || isSupervisor ? [{ label: 'Absenteeism Detection', href: '/absenteeism', icon: UserX }] : []),
+
+    // Leave Requests: Approval/Reject for Admin & Supervisor, Requisitions for Employee
+    ...(isAdmin || isSupervisor
+      ? [{ label: 'Leave Request Approval or Reject', href: '/leave', icon: CalendarDays }]
+      : [{ label: 'Leave Requests', href: '/leave', icon: CalendarDays }]),
+
     { label: 'Overtime & Comp', href: '/overtime', icon: Timer },
-    ...(isAdmin ? [{ label: 'Tax Bracket Matrix', href: '/tax-matrix', icon: BadgeDollarSign }] : []),
-    ...(isAdmin ? [{ label: 'Payroll Processing', href: '/payroll', icon: FileSpreadsheet }] : []),
-    { label: 'Payslip Viewer', href: '/payslips', icon: Receipt },
-    ...(isAdmin ? [{ label: 'Benefits Management', href: '/benefits', icon: HeartHandshake }] : []),
-    ...(isAdmin ? [{ label: 'Cost Centers', href: '/cost-centers', icon: PieChart }] : []),
-    { label: 'Reports & Analytics', href: '/reports', icon: BarChart3 },
-    ...(isAdmin ? [{ label: 'Audit Trail', href: '/audit-logs', icon: ShieldAlert }] : []),
+
+    // Payroll & Financial Management (Admin)
+    ...(isAdmin ? [
+      { label: 'Tax Bracket Matrix', href: '/tax-matrix', icon: BadgeDollarSign },
+      { label: 'Payroll Processing', href: '/payroll', icon: FileSpreadsheet },
+      { label: 'Payslip Viewer', href: '/payslips', icon: Receipt },
+      { label: 'Benefits Management', href: '/benefits', icon: HeartHandshake },
+      { label: 'Cost Centers', href: '/cost-centers', icon: PieChart },
+    ] : []),
+
+    // Reports: Admin & Supervisor only (Removed from Employee)
+    ...(isAdmin || isSupervisor ? [{ label: 'Reports & Analytics', href: '/reports', icon: BarChart3 }] : []),
   ];
 
   return (

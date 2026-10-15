@@ -17,6 +17,7 @@ import { apiRequest, formatPHP, formatDate } from '../../lib/api';
 import { OvertimeRecord, Employee } from '../../types';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { soundFx } from '../../lib/sound';
 
 export default function OvertimePage() {
   const { user, isAdmin, isSupervisor } = useAuth();
@@ -75,7 +76,7 @@ export default function OvertimePage() {
       method: 'POST',
       body: JSON.stringify({
         ...formData,
-        empId: user?.employeeId || formData.empId || 'EMP-001'
+        empId: formData.empId || user?.employeeId || 'EMP-001'
       }),
     });
 
@@ -106,6 +107,26 @@ export default function OvertimePage() {
       setReviewRemarks('');
       fetchData();
     } else {
+      error('Action Failed', res.error?.message);
+    }
+  };
+
+  const handleDirectReview = async (otId: string, status: 'Approved' | 'Rejected') => {
+    soundFx.playBiometricScan();
+    const res = await apiRequest(`/overtime/review/${otId}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        status,
+        remarks: `Direct ${status.toLowerCase()} by ${user?.name || 'Supervisor'}`
+      }),
+    });
+
+    if (res.success) {
+      soundFx.playSuccess();
+      success(`Overtime ${status}`, `Record marked as ${status.toLowerCase()}.`);
+      fetchData();
+    } else {
+      soundFx.playAlert();
       error('Action Failed', res.error?.message);
     }
   };
@@ -259,17 +280,38 @@ export default function OvertimePage() {
                         </td>
                         <td className="py-3 px-4 text-right">
                           {(isAdmin || isSupervisor) && ot.status === 'Pending' ? (
-                            <button
-                              onClick={() => {
-                                setReviewingOt(ot);
-                                setReviewRemarks('');
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] transition-colors"
-                            >
-                              Review
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleDirectReview(ot.id, 'Approved')}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[11px] flex items-center gap-1 transition-colors shadow-2xs"
+                                title="Approve Overtime"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Approve</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleDirectReview(ot.id, 'Rejected')}
+                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] flex items-center gap-1 transition-colors shadow-2xs"
+                                title="Reject Overtime"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                <span>Reject</span>
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setReviewingOt(ot);
+                                  setReviewRemarks('');
+                                }}
+                                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium text-[11px] transition-colors"
+                                title="Add reviewer notes"
+                              >
+                                Remarks
+                              </button>
+                            </div>
                           ) : (
-                            <span className="text-slate-400 text-[11px]">—</span>
+                            <span className="text-slate-400 text-[11px] font-mono">{ot.status}</span>
                           )}
                         </td>
                       </tr>
@@ -290,20 +332,29 @@ export default function OvertimePage() {
             <p className="text-xs text-slate-500 mb-4">Overtime rate is dynamically computed from basic monthly salary.</p>
 
             <form onSubmit={handleSubmitOt} className="space-y-3.5 text-xs">
-              {isAdmin && (
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Employee *</label>
-                  <select
-                    value={formData.empId}
-                    onChange={e => setFormData({ ...formData, empId: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 outline-none focus:border-indigo-500"
-                  >
-                    {employees.map(e => (
-                      <option key={e.id} value={e.id}>{e.name} ({e.id})</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Employee Requesting Overtime *</span>
+                  <span className="text-[10px] text-indigo-600 font-bold">Personnel Selection</span>
+                </label>
+                <select
+                  value={formData.empId}
+                  onChange={e => setFormData({ ...formData, empId: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 outline-none focus:border-indigo-500 font-medium"
+                >
+                  {employees.map(e => (
+                    <option key={e.id} value={e.id}>
+                      {e.id} — {e.name} ({e.department})
+                    </option>
+                  ))}
+                </select>
+                {selectedEmp && (
+                  <div className="mt-1.5 p-2 rounded-lg bg-slate-50 border border-slate-200/60 text-[11px] text-slate-600 flex items-center justify-between">
+                    <span>Position: <strong>{selectedEmp.position}</strong></span>
+                    <span>Base: <strong>{formatPHP(selectedEmp.salary)}</strong></span>
+                  </div>
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

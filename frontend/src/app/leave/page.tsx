@@ -18,6 +18,7 @@ import { apiRequest, formatDate } from '../../lib/api';
 import { LeaveRequest, Employee } from '../../types';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { soundFx } from '../../lib/sound';
 
 export default function LeavePage() {
   const { user, isAdmin, isSupervisor } = useAuth();
@@ -76,7 +77,7 @@ export default function LeavePage() {
       method: 'POST',
       body: JSON.stringify({
         ...formData,
-        empId: user?.employeeId || formData.empId || 'EMP-001'
+        empId: formData.empId || user?.employeeId || 'EMP-001'
       }),
     });
 
@@ -114,7 +115,31 @@ export default function LeavePage() {
     }
   };
 
+  const handleQuickReview = async (leaveId: string, status: 'Approved' | 'Rejected') => {
+    soundFx.playBiometricScan();
+    const res = await apiRequest(`/leaves/review/${leaveId}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        status,
+        remarks: `Decided (${status}) by ${user?.name || 'Administrator'}`
+      }),
+    });
+
+    if (res.success) {
+      soundFx.playSuccess();
+      success(`Leave ${status}`, `Request ${leaveId} has been marked as ${status.toLowerCase()}.`);
+      fetchLeaves();
+    } else {
+      soundFx.playAlert();
+      error('Action Failed', res.error?.message);
+    }
+  };
+
   const getEmp = (id: string) => employees.find(e => e.id === id);
+
+  const pendingCount = leaves.filter(l => l.status === 'Pending').length;
+  const approvedCount = leaves.filter(l => l.status === 'Approved').length;
+  const rejectedCount = leaves.filter(l => l.status === 'Rejected').length;
 
   const filtered = leaves.filter(l => {
     const emp = getEmp(l.empId);
@@ -129,15 +154,23 @@ export default function LeavePage() {
 
   return (
     <>
-      <Navbar title="Leave Requisition & Approval" />
+      <Navbar title={isAdmin || isSupervisor ? 'Leave Request Approval & Management' : 'Leave Requisitions'} />
 
       <main className="p-6 max-w-7xl mx-auto space-y-6">
         {/* Top Header Card */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs">
           <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Leave Requisition Workflow</h1>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold mb-1">
+              <CalendarDays className="w-3.5 h-3.5" />
+              <span>{isAdmin || isSupervisor ? 'Approval & Authorization Authority' : 'Employee Self-Service'}</span>
+            </div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              {isAdmin || isSupervisor ? 'Leave Request Approval or Reject Dashboard' : 'Leave Requisition Portal'}
+            </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Submit, track, and approve vacation, sick, and statutory leave applications.
+              {isAdmin || isSupervisor
+                ? 'Review, approve, or reject employee leave requests with automated attendance and deduction syncing.'
+                : 'Submit, track, and monitor vacation, sick, and statutory leave applications.'}
             </p>
           </div>
 
@@ -148,6 +181,73 @@ export default function LeavePage() {
             <Plus className="w-4 h-4" />
             <span>Apply For Leave</span>
           </button>
+        </div>
+
+        {/* 4 Decision Metrics Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div
+            onClick={() => setStatusFilter(statusFilter === 'Pending' ? 'ALL' : 'Pending')}
+            className={`p-4 rounded-2xl border transition cursor-pointer ${
+              statusFilter === 'Pending'
+                ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-500/20'
+                : 'bg-white border-slate-200 hover:border-amber-200 shadow-2xs'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Pending Decision</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+            </div>
+            <div className="mt-2 text-2xl font-extrabold text-amber-900">{pendingCount}</div>
+            <p className="text-[11px] text-amber-700 mt-0.5">Awaiting manager review</p>
+          </div>
+
+          <div
+            onClick={() => setStatusFilter(statusFilter === 'Approved' ? 'ALL' : 'Approved')}
+            className={`p-4 rounded-2xl border transition cursor-pointer ${
+              statusFilter === 'Approved'
+                ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/20'
+                : 'bg-white border-slate-200 hover:border-emerald-200 shadow-2xs'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Approved</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div className="mt-2 text-2xl font-extrabold text-emerald-900">{approvedCount}</div>
+            <p className="text-[11px] text-emerald-700 mt-0.5">Authorized & excused</p>
+          </div>
+
+          <div
+            onClick={() => setStatusFilter(statusFilter === 'Rejected' ? 'ALL' : 'Rejected')}
+            className={`p-4 rounded-2xl border transition cursor-pointer ${
+              statusFilter === 'Rejected'
+                ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-500/20'
+                : 'bg-white border-slate-200 hover:border-rose-200 shadow-2xs'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-rose-800 uppercase tracking-wider">Rejected</span>
+              <XCircle className="w-4 h-4 text-rose-600" />
+            </div>
+            <div className="mt-2 text-2xl font-extrabold text-rose-900">{rejectedCount}</div>
+            <p className="text-[11px] text-rose-700 mt-0.5">Declined requests</p>
+          </div>
+
+          <div
+            onClick={() => setStatusFilter('ALL')}
+            className={`p-4 rounded-2xl border transition cursor-pointer ${
+              statusFilter === 'ALL'
+                ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-500/20'
+                : 'bg-white border-slate-200 hover:border-indigo-200 shadow-2xs'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Total Filed</span>
+              <CalendarDays className="w-4 h-4 text-slate-500" />
+            </div>
+            <div className="mt-2 text-2xl font-extrabold text-slate-900">{leaves.length}</div>
+            <p className="text-[11px] text-slate-500 mt-0.5">All requisition records</p>
+          </div>
         </div>
 
         {/* Toolbar */}
@@ -254,17 +354,38 @@ export default function LeavePage() {
                         </td>
                         <td className="py-3 px-4 text-right">
                           {(isAdmin || isSupervisor) && l.status === 'Pending' ? (
-                            <button
-                              onClick={() => {
-                                setReviewingLeave(l);
-                                setReviewRemarks('');
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] transition-colors"
-                            >
-                              Review
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleQuickReview(l.id, 'Approved')}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[11px] flex items-center gap-1 transition-colors shadow-2xs"
+                                title="Approve Request"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Approve</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleQuickReview(l.id, 'Rejected')}
+                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] flex items-center gap-1 transition-colors shadow-2xs"
+                                title="Reject Request"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                <span>Reject</span>
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setReviewingLeave(l);
+                                  setReviewRemarks('');
+                                }}
+                                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium text-[11px] transition-colors"
+                                title="Add custom remarks"
+                              >
+                                Remarks
+                              </button>
+                            </div>
                           ) : (
-                            <span className="text-slate-400 text-[11px]">—</span>
+                            <span className="text-slate-400 text-[11px] font-mono">{l.status}</span>
                           )}
                         </td>
                       </tr>
@@ -285,7 +406,7 @@ export default function LeavePage() {
             <p className="text-xs text-slate-500 mb-4">Complete your dates and justification for approval.</p>
 
             <form onSubmit={handleSubmitLeave} className="space-y-3.5 text-xs">
-              {isAdmin && (
+              {(isAdmin || isSupervisor) && (
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Employee *</label>
                   <select
