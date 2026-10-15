@@ -1,9 +1,10 @@
 import { Database } from '../db/database';
-import { qrService } from '../services/qr.service';
+import { qrService, getQrSecret } from '../services/qr.service';
 import { attendanceService } from '../services/attendance.service';
 import { leaveService } from '../services/leave.service';
 import { overtimeService } from '../services/overtime.service';
 import { payrollService } from '../services/payroll.service';
+import { getJwtSecret } from '../services/auth.service';
 
 let totalTests = 0;
 let passedTests = 0;
@@ -83,10 +84,17 @@ async function runTestSuite1_LeaveWorkflow() {
     'cannot exceed 5 calendar days'
   );
 
-  // Unique future dates for test run to guarantee complete idempotency
-  const randOffset = Math.floor(Math.random() * 8000) + 1000;
-  const y = 2030 + Math.floor(randOffset / 1000);
-  const m = String((randOffset % 12) + 1).padStart(2, '0');
+  // Clean existing test leaves for EMP-001 to guarantee test idempotency across runs
+  const existingEmp1Leaves = await db.getLeaves({ empId: 'EMP-001' });
+  for (const l of existingEmp1Leaves) {
+    if (l.start >= '2030-01-01') {
+      await db.updateLeave(l.id, { status: 'Cancelled' });
+    }
+  }
+
+  // Unique future dates for test run
+  const y = 2035;
+  const m = '06';
   const futureStart = `${y}-${m}-01`;
   const futureEnd = `${y}-${m}-03`;
 
@@ -331,8 +339,18 @@ async function runTestSuite4_RoleRbacAndDepartmentScoping() {
   );
 
   // Test 2: Supervisor self-review disallowance
+  // Clean existing future leaves for test employees in Suite 4
+  for (const testId of ['EMP-002', 'EMP-001', 'EMP-008']) {
+    const prev = await db.getLeaves({ empId: testId });
+    for (const l of prev) {
+      if (l.start >= '2040-01-01') {
+        await db.updateLeave(l.id, { status: 'Cancelled' });
+      }
+    }
+  }
+
   // Create leave request for supervisor Maria Santos (EMP-002)
-  const randYear = 2040 + Math.floor(Math.random() * 50);
+  const randYear = 2045;
   const supervisorLeave = await leaveService.createLeave({
     empId: 'EMP-002',
     type: 'Vacation Leave',
@@ -381,6 +399,73 @@ async function runTestSuite4_RoleRbacAndDepartmentScoping() {
   );
 }
 
+async function runTestSuite5_SecuritySecretsAndPunchRestrictions() {
+  console.log('\n\x1b[1m\x1b[34m=== SUITE 5: SECURITY SECRETS & PUNCH RESTRICTIONS ===\x1b[0m');
+  const db = Database.getInstance();
+
+  // Test 1: Production JWT_SECRET fail-fast check
+  const origEnv = process.env.NODE_ENV;
+  const origJwt = process.env.JWT_SECRET;
+  try {
+    process.env.NODE_ENV = 'production';
+    delete process.env.JWT_SECRET;
+    let caughtJwtError = false;
+    try {
+      getJwtSecret();
+    } catch (e: any) {
+      caughtJwtError = e.message.includes('FATAL SECURITY CONFIGURATION ERROR');
+    }
+    assert(caughtJwtError, 'Production mode strictly requires configured JWT_SECRET (fails without fallback)');
+  } finally {
+    process.env.NODE_ENV = origEnv;
+    if (origJwt) process.env.JWT_SECRET = origJwt;
+    else delete process.env.JWT_SECRET;
+  }
+
+  // Test 2: Production QR_HMAC_SECRET fail-fast check
+  const origQr = process.env.QR_HMAC_SECRET;
+  try {
+    process.env.NODE_ENV = 'production';
+    delete process.env.QR_HMAC_SECRET;
+    delete process.env.QR_SECRET;
+    let caughtQrError = false;
+    try {
+      getQrSecret();
+    } catch (e: any) {
+      caughtQrError = e.message.includes('FATAL SECURITY CONFIGURATION ERROR');
+    }
+    assert(caughtQrError, 'Production mode strictly requires configured QR_HMAC_SECRET (fails without fallback)');
+  } finally {
+    process.env.NODE_ENV = origEnv;
+    if (origQr) process.env.QR_HMAC_SECRET = origQr;
+    else delete process.env.QR_HMAC_SECRET;
+  }
+
+  // Test 3: Reject non-APXQR token in qrPunch
+  await expectThrow(
+    () => attendanceService.qrPunch({
+      token: 'INVALID_TOKEN_FORMAT',
+      requestedType: 'TIME_IN'
+    }),
+    'Strictly reject non-APXQR token in qrPunch endpoint',
+    'APXQR...'
+  );
+
+  // Test 4: Reject empty or missing token in qrPunch
+  await expectThrow(
+    () => attendanceService.qrPunch({
+      token: '',
+      requestedType: 'TIME_IN'
+    } as any),
+    'Strictly reject missing token in qrPunch (no direct ID bypass)',
+    'APXQR...'
+  );
+
+  // Test 5: Verify database layer resolves records
+  const emp1 = await db.getEmployeeById('EMP-001');
+  assert(emp1 !== undefined && emp1.email === 'juan.delacruz@payroll.corp', 'Database layer successfully resolves active employee data');
+}
+
 export async function runAllTests() {
   console.log('\x1b[1m\x1b[36m=====================================================\x1b[0m');
   console.log('\x1b[1m\x1b[36m  APEX ENTERPRISE SYSTEM INTEGRATION TEST HARNESS     \x1b[0m');
@@ -393,6 +478,7 @@ export async function runAllTests() {
     await runTestSuite2_CryptographicQrAttendance();
     await runTestSuite3_AutomaticOvertimePipeline();
     await runTestSuite4_RoleRbacAndDepartmentScoping();
+    await runTestSuite5_SecuritySecretsAndPunchRestrictions();
   } catch (e) {
     console.error('Fatal unhandled test suite error:', e);
   }

@@ -11,7 +11,8 @@ import {
   Check,
   X,
   Clock,
-  Sparkles
+  Sparkles,
+  ShieldCheck
 } from 'lucide-react';
 import { Navbar } from '../../components/Navbar';
 import { apiRequest, formatDate } from '../../lib/api';
@@ -189,13 +190,20 @@ export default function LeavePage() {
             </p>
           </div>
 
-          <button
-            onClick={() => setIsSubmitOpen(true)}
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-1.5 transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Apply For Leave</span>
-          </button>
+          {isAdmin || isSupervisor ? (
+            <div className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200/90 text-slate-700 text-xs font-semibold flex items-center gap-2 shadow-2xs">
+              <ShieldCheck className="w-4 h-4 text-indigo-600" />
+              <span>Review & Approval Authority</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsSubmitOpen(true)}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Apply For Leave</span>
+            </button>
+          )}
         </div>
 
         {/* 4 Decision Metrics Cards */}

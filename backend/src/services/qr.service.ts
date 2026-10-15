@@ -3,7 +3,22 @@ import { Database } from '../db/database';
 import { QrCredential, QrTokenPayload } from '../types';
 import { auditService } from './audit.service';
 
-const QR_SECRET = process.env.QR_HMAC_SECRET || 'apex-payroll-qr-hmac-sha256-production-secret-key-2026';
+export function getQrSecret(): string {
+  const secret = process.env.QR_HMAC_SECRET || process.env.QR_SECRET;
+  const isProd = process.env.NODE_ENV === 'production';
+  if (!secret || secret.trim() === '') {
+    if (isProd) {
+      throw new Error('FATAL SECURITY CONFIGURATION ERROR: QR_HMAC_SECRET environment variable is missing in production mode.');
+    }
+    console.warn('[SECURITY WARNING] QR_HMAC_SECRET is not set in environment. Falling back to development secret. NEVER use this in production.');
+    return 'apex-payroll-qr-dev-only-secret-key-32chars';
+  }
+  if (isProd && (secret.includes('change-me') || secret.length < 32)) {
+    throw new Error('FATAL SECURITY CONFIGURATION ERROR: Production QR_HMAC_SECRET must be at least 32 characters and cannot use default placeholder values.');
+  }
+  return secret;
+}
+
 const TOKEN_PREFIX = 'APXQR';
 const TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days validity per badge
 
@@ -73,7 +88,7 @@ export class QrService {
     };
 
     const encodedPayload = base64UrlEncode(JSON.stringify(payload));
-    const hmac = crypto.createHmac('sha256', QR_SECRET);
+    const hmac = crypto.createHmac('sha256', getQrSecret());
     hmac.update(`${TOKEN_PREFIX}.${encodedPayload}`);
     const signature = hmac.digest('hex');
 
@@ -116,7 +131,7 @@ export class QrService {
     const [prefix, encodedPayload, receivedSignature] = parts;
 
     // Verify HMAC-SHA256 signature
-    const hmac = crypto.createHmac('sha256', QR_SECRET);
+    const hmac = crypto.createHmac('sha256', getQrSecret());
     hmac.update(`${prefix}.${encodedPayload}`);
     const expectedSignature = hmac.digest('hex');
 

@@ -4,7 +4,22 @@ import { Database } from '../db/database';
 import { User, Role } from '../types';
 import { auditService } from './audit.service';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecret-payroll-production-key-change-me-2026';
+export function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  const isProd = process.env.NODE_ENV === 'production';
+  if (!secret || secret.trim() === '') {
+    if (isProd) {
+      throw new Error('FATAL SECURITY CONFIGURATION ERROR: JWT_SECRET environment variable is missing in production mode.');
+    }
+    console.warn('[SECURITY WARNING] JWT_SECRET is not set in environment. Falling back to development secret. NEVER use this in production.');
+    return 'supersecret-payroll-dev-only-secret-key-32chars';
+  }
+  if (isProd && (secret.includes('change-me') || secret.length < 32)) {
+    throw new Error('FATAL SECURITY CONFIGURATION ERROR: Production JWT_SECRET must be at least 32 characters and cannot use default placeholder values.');
+  }
+  return secret;
+}
+
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 export interface AuthTokenPayload {
@@ -43,7 +58,7 @@ export class AuthService {
       department: user.department,
     };
 
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' });
 
     await auditService.log({
       userId: user.id,
@@ -62,7 +77,7 @@ export class AuthService {
 
   public verifyToken(token: string): AuthTokenPayload {
     try {
-      return jwt.verify(token, JWT_SECRET) as AuthTokenPayload;
+      return jwt.verify(token, getJwtSecret()) as AuthTokenPayload;
     } catch (e) {
       throw new Error('Authentication token is invalid or expired.');
     }

@@ -8,6 +8,26 @@ import { errorHandler } from './middleware/error.middleware';
 
 dotenv.config();
 
+// Production Security Sanity Checks
+if (process.env.NODE_ENV === 'production') {
+  const missingSecrets: string[] = [];
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.trim() === '' || process.env.JWT_SECRET.includes('change-me')) {
+    missingSecrets.push('JWT_SECRET');
+  }
+  if ((!process.env.QR_HMAC_SECRET && !process.env.QR_SECRET) || (process.env.QR_HMAC_SECRET?.includes('change-me'))) {
+    missingSecrets.push('QR_HMAC_SECRET');
+  }
+  if (missingSecrets.length > 0) {
+    console.error('\n================================================================');
+    console.error('❌ FATAL PRODUCTION SECURITY ERROR: Missing required secrets:');
+    missingSecrets.forEach(s => console.error(`   - ${s}`));
+    console.error('The application cannot start in production mode without securely');
+    console.error('configured, non-default cryptographic secret keys.');
+    console.error('================================================================\n');
+    process.exit(1);
+  }
+}
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 

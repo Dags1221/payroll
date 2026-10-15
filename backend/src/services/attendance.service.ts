@@ -224,11 +224,9 @@ export class AttendanceService {
   }
 
   public async qrPunch(params: {
-    token?: string;
-    empId?: string;
+    token: string;
     requestedType?: 'TIME_IN' | 'TIME_OUT' | 'AUTO';
     actorName?: string;
-    allowDirectId?: boolean;
     customTime?: string;
   }): Promise<{
     record: Attendance;
@@ -237,17 +235,13 @@ export class AttendanceService {
     punchTime: string;
     message: string;
   }> {
-    let resolvedEmpId: string;
-
-    if (params.token && params.token.trim() !== '') {
-      // Cryptographic verification of HMAC-SHA256 token
-      const verified = await qrService.verifySignedToken(params.token);
-      resolvedEmpId = verified.empId;
-    } else if (params.allowDirectId && params.empId) {
-      resolvedEmpId = params.empId;
-    } else {
-      throw new Error('Valid cryptographically signed QR code token is required for attendance punch.');
+    if (!params.token || typeof params.token !== 'string' || !params.token.trim().startsWith('APXQR.')) {
+      throw new Error('Valid cryptographically signed QR code token (APXQR...) is strictly required for attendance punch. Direct manual punching is prohibited.');
     }
+
+    // Cryptographic verification of HMAC-SHA256 token
+    const verified = await qrService.verifySignedToken(params.token);
+    const resolvedEmpId = verified.empId;
 
     const employee = await this.db.getEmployeeById(resolvedEmpId);
     if (!employee) {

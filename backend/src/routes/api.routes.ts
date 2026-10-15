@@ -230,43 +230,23 @@ api.get('/attendance/qr-code', authenticate, async (req: AuthenticatedRequest, r
 
 api.post('/attendance/qr-punch', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const { token, empId, type } = req.body;
+    const { token, type } = req.body;
 
-    if (token && typeof token === 'string' && token.trim() !== '') {
-      const result = await attendanceService.qrPunch({
-        token,
-        requestedType: type,
-        actorName: req.user?.name || 'QR Terminal'
+    if (!token || typeof token !== 'string' || !token.trim().startsWith('APXQR.')) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_QR_TOKEN',
+          message: 'Attendance must only be recorded by scanning an authentic, cryptographically signed employee QR badge (APXQR...). Direct punches and manual overrides are disabled.'
+        }
       });
-      res.json({ success: true, data: result });
       return;
-    }
-
-    // Direct punch without token: verify permissions
-    const targetEmpId = empId || req.user?.employeeId;
-    if (!targetEmpId) {
-      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Cryptographically signed QR token or target employee ID required.' } });
-      return;
-    }
-
-    if (req.user?.role === 'EMPLOYEE' && targetEmpId !== req.user.employeeId) {
-      res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Employees can only punch attendance for their own account.' } });
-      return;
-    }
-
-    if (req.user?.role === 'SUPERVISOR' && targetEmpId !== req.user.employeeId) {
-      const emp = await Database.getInstance().getEmployeeById(targetEmpId);
-      if (!emp || emp.department.toLowerCase() !== (req.user.department || '').toLowerCase()) {
-        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Supervisors can only punch attendance for employees in their department.' } });
-        return;
-      }
     }
 
     const result = await attendanceService.qrPunch({
-      empId: targetEmpId,
-      allowDirectId: true,
+      token: token.trim(),
       requestedType: type,
-      actorName: req.user?.name || 'Terminal'
+      actorName: req.user?.name || 'QR Terminal'
     });
     res.json({ success: true, data: result });
   } catch (e) {
@@ -274,34 +254,24 @@ api.post('/attendance/qr-punch', authenticate, async (req: AuthenticatedRequest,
   }
 });
 
-api.post('/attendance/clock-in', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
-  try {
-    let empId = req.body.empId;
-    if (req.user?.role === 'EMPLOYEE') {
-      empId = req.user.employeeId;
-    } else {
-      empId = empId || req.user?.employeeId || 'EMP-001';
+api.post('/attendance/clock-in', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  res.status(403).json({
+    success: false,
+    error: {
+      code: 'ATTENDANCE_METHOD_RESTRICTED',
+      message: 'Direct manual clock-in is disabled. Attendance must only be recorded by scanning an employee QR code at an authorized scanner station.'
     }
-    const record = await attendanceService.clockIn(empId, req.user?.name);
-    res.json({ success: true, data: record });
-  } catch (e) {
-    next(e);
-  }
+  });
 });
 
-api.post('/attendance/clock-out', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
-  try {
-    let empId = req.body.empId;
-    if (req.user?.role === 'EMPLOYEE') {
-      empId = req.user.employeeId;
-    } else {
-      empId = empId || req.user?.employeeId || 'EMP-001';
+api.post('/attendance/clock-out', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  res.status(403).json({
+    success: false,
+    error: {
+      code: 'ATTENDANCE_METHOD_RESTRICTED',
+      message: 'Direct manual clock-out is disabled. Attendance must only be recorded by scanning an employee QR code at an authorized scanner station.'
     }
-    const record = await attendanceService.clockOut(empId, req.user?.name);
-    res.json({ success: true, data: record });
-  } catch (e) {
-    next(e);
-  }
+  });
 });
 
 api.put('/attendance/adjust/:id', authenticate, requireRole('ADMIN', 'SUPERVISOR'), async (req: AuthenticatedRequest, res: Response, next) => {
@@ -395,40 +365,37 @@ api.post('/leaves', authenticate, async (req: AuthenticatedRequest, res: Respons
   try {
     const { empId, type, start, end, reason } = req.body;
 
-    if (req.user?.role === 'ADMIN' && !req.user.employeeId && !empId) {
-      res.status(400).json({
+    // Strict Role Enforcement: Only employees can submit leave requests.
+    // Admins and supervisors can only review/approve/reject requests, not submit them through this workflow.
+    if (req.user?.role !== 'EMPLOYEE') {
+      res.status(403).json({
         success: false,
-        error: { code: 'ROLE_RESTRICTION', message: 'Administrators cannot file employee self-service leave requests without an employee profile.' }
+        error: {
+          code: 'FORBIDDEN_ROLE',
+          message: 'Only employees can submit leave requests. Administrators and supervisors can only review, approve, or reject requests through the management workflow.'
+        }
       });
       return;
     }
 
-    let effectiveEmpId = req.user?.employeeId;
-    if (req.user?.role === 'ADMIN' && empId) {
-      effectiveEmpId = empId;
-    } else if (req.user?.role === 'EMPLOYEE') {
-      if (empId && empId !== req.user.employeeId) {
-        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Employees cannot file leave requests on behalf of other employees.' } });
-        return;
-      }
-      effectiveEmpId = req.user.employeeId;
-    } else if (req.user?.role === 'SUPERVISOR') {
-      if (empId && empId !== req.user.employeeId) {
-        const target = await Database.getInstance().getEmployeeById(empId);
-        if (!target || target.department.toLowerCase() !== (req.user.department || '').toLowerCase()) {
-          res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Supervisors can only file leave on behalf of employees in their department.' } });
-          return;
-        }
-        effectiveEmpId = empId;
-      } else {
-        effectiveEmpId = req.user.employeeId;
-      }
-    }
-
-    if (!effectiveEmpId) {
-      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Valid employee ID required.' } });
+    // Employees can strictly file ONLY for their own employee profile
+    if (!req.user.employeeId) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'PROFILE_REQUIRED', message: 'Employee user account is not linked to a valid employee profile.' }
+      });
       return;
     }
+
+    if (empId && empId !== req.user.employeeId) {
+      res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Employees cannot file leave requests on behalf of other employees.' }
+      });
+      return;
+    }
+
+    const effectiveEmpId = req.user.employeeId;
 
     const leave = await leaveService.createLeave({
       empId: effectiveEmpId,
