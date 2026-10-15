@@ -76,11 +76,14 @@ export default function AttendanceDashboardPage() {
 
   const fetchDashboardData = async () => {
     setLoading(true);
+    const deptQuery = isSupervisor && user?.department
+      ? `&department=${encodeURIComponent(user.department)}`
+      : (departmentFilter !== 'ALL' ? `&department=${encodeURIComponent(departmentFilter)}` : '');
     const res = await apiRequest<{
       date: string;
       summary: typeof summary;
       roster: DashboardRosterItem[];
-    }>(`/attendance/dashboard?date=${selectedDate}`);
+    }>(`/attendance/dashboard?date=${selectedDate}${deptQuery}`);
 
     if (res.success && res.data) {
       setSummary(res.data.summary);
@@ -465,19 +468,26 @@ export default function AttendanceDashboardPage() {
               />
             </div>
 
-            <select
-              value={departmentFilter}
-              onChange={e => setDepartmentFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 outline-none"
-            >
-              <option value="ALL">All Departments</option>
-              <option value="Information Technology">Information Technology</option>
-              <option value="Finance">Finance</option>
-              <option value="Human Resources">Human Resources</option>
-              <option value="Operations">Operations</option>
-              <option value="Administration">Administration</option>
-              <option value="Marketing">Marketing</option>
-            </select>
+            {isSupervisor ? (
+              <div className="px-3.5 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 text-xs font-bold text-indigo-900 flex items-center gap-1.5 whitespace-nowrap">
+                <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+                <span>Team: {user?.department || 'Department'}</span>
+              </div>
+            ) : (
+              <select
+                value={departmentFilter}
+                onChange={e => setDepartmentFilter(e.target.value)}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 outline-none"
+              >
+                <option value="ALL">All Departments</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Finance">Finance</option>
+                <option value="Human Resources">Human Resources</option>
+                <option value="Operations">Operations</option>
+                <option value="Administration">Administration</option>
+                <option value="Marketing">Marketing</option>
+              </select>
+            )}
           </div>
         </div>
 

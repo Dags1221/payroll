@@ -23,6 +23,10 @@ export class OvertimeService {
     const emp = await this.db.getEmployeeById(data.empId);
     if (!emp) throw new Error('Employee not found.');
 
+    if (!data.hours || data.hours <= 0) {
+      throw new Error('Overtime hours must be greater than zero.');
+    }
+
     const salary = Number(emp.salary || 0);
     // Standard hourly rate based on 160 hours / month
     const hourlyBase = round2(salary / 160);
@@ -57,7 +61,7 @@ export class OvertimeService {
     });
 
     await notificationService.notify({
-      userId: 'USR-001',
+      userId: 'ALL',
       title: 'New Overtime Request Submitted',
       message: `${emp.name} filed an overtime request for ${data.hours} hour(s) on ${data.date}.`,
       type: 'INFO',
@@ -77,11 +81,23 @@ export class OvertimeService {
     const ot = await this.db.getOvertimeById(params.overtimeId);
     if (!ot) throw new Error('Overtime record not found.');
 
+    // Concurrency / Idempotency check: only Pending records can be reviewed
+    if (ot.status !== 'Pending') {
+      throw new Error(`Overtime record has already been finalized (${ot.status}).`);
+    }
+
+    // Mandatory rejection reason
+    if (params.status === 'Rejected') {
+      if (!params.remarks || params.remarks.trim() === '') {
+        throw new Error('A rejection reason is mandatory.');
+      }
+    }
+
     const updated = await this.db.updateOvertime(params.overtimeId, {
       status: params.status,
       approverId: params.approverId,
       approverName: params.approverName,
-      remarks: params.remarks,
+      remarks: params.remarks.trim(),
       approvedAt: new Date().toISOString()
     });
 

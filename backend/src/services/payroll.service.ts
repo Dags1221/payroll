@@ -108,12 +108,14 @@ export class PayrollService {
       const minuteRate = round2(hourlyRate / 60);
       const dailyRate = round2(basicSalary / 22);
 
-      // 1. Approved Overtime within period
+      // 1. Approved Overtime within period (unlinked or matching this period item)
+      const expectedItemId = `PI-${period.id.slice(-4)}-${emp.id}`;
       const empOvertime = allOvertime.filter(
         o => o.empId === emp.id &&
              o.status === 'Approved' &&
              o.date >= period.startDate &&
-             o.date <= period.endDate
+             o.date <= period.endDate &&
+             (!o.payrollItemId || o.payrollItemId === expectedItemId)
       );
       const totalOtHours = round2(empOvertime.reduce((sum, o) => sum + Number(o.hours), 0));
       const totalOtPay = round2(empOvertime.reduce((sum, o) => sum + Number(o.amount), 0));
@@ -200,6 +202,11 @@ export class PayrollService {
       };
 
       items.push(item);
+
+      // Link overtime records to this item to prevent duplicate payment in other periods
+      for (const ot of empOvertime) {
+        await this.db.updateOvertime(ot.id, { payrollItemId: item.id });
+      }
     }
 
     periodTotalGross = round2(periodTotalGross);
@@ -325,6 +332,16 @@ export class PayrollService {
       finalizedBy: undefined,
       finalizedAt: undefined
     });
+
+    // Unlink overtime records tied to this period's items
+    const items = await this.db.getPayrollItems({ periodId });
+    const itemIds = new Set(items.map(i => i.id));
+    const allOt = await this.db.getOvertime();
+    for (const ot of allOt) {
+      if (ot.payrollItemId && itemIds.has(ot.payrollItemId)) {
+        await this.db.updateOvertime(ot.id, { payrollItemId: undefined });
+      }
+    }
 
     await auditService.log({
       userId: 'ADMIN',

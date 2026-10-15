@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS attendance (
     working_hours NUMERIC(5, 2) DEFAULT 0.00,
     regular_hours NUMERIC(5, 2) DEFAULT 0.00,
     overtime_hours NUMERIC(5, 2) DEFAULT 0.00,
+    break_minutes INTEGER DEFAULT 0,
     late_minutes INTEGER DEFAULT 0,
     undertime_minutes INTEGER DEFAULT 0,
     status VARCHAR(30) NOT NULL DEFAULT 'Present',
@@ -139,6 +140,8 @@ CREATE TABLE IF NOT EXISTS overtime (
     amount NUMERIC(10, 2) NOT NULL,
     reason TEXT,
     status VARCHAR(30) NOT NULL DEFAULT 'Pending',
+    attendance_id VARCHAR(50) REFERENCES attendance(id) ON DELETE SET NULL,
+    payroll_item_id VARCHAR(50),
     approver_id VARCHAR(50),
     approver_name VARCHAR(150),
     remarks TEXT,
@@ -148,6 +151,20 @@ CREATE TABLE IF NOT EXISTS overtime (
 
 CREATE INDEX IF NOT EXISTS idx_overtime_emp ON overtime(emp_id);
 CREATE INDEX IF NOT EXISTS idx_overtime_status ON overtime(status);
+CREATE INDEX IF NOT EXISTS idx_overtime_att ON overtime(attendance_id);
+
+-- Secure QR Badges & Credentials
+CREATE TABLE IF NOT EXISTS qr_credentials (
+    id VARCHAR(50) PRIMARY KEY,
+    emp_id VARCHAR(50) NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    token_version INTEGER NOT NULL DEFAULT 1,
+    secret_key VARCHAR(255),
+    revoked BOOLEAN NOT NULL DEFAULT FALSE,
+    last_generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_scanned_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_qr_credentials_emp ON qr_credentials(emp_id);
 
 -- Tax Bracket Matrix
 CREATE TABLE IF NOT EXISTS tax_brackets (

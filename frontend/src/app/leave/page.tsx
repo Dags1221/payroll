@@ -22,7 +22,7 @@ import { soundFx } from '../../lib/sound';
 
 export default function LeavePage() {
   const { user, isAdmin, isSupervisor } = useAuth();
-  const { success, error } = useToast();
+  const { success, error, info } = useToast();
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,11 +97,16 @@ export default function LeavePage() {
   const handleReview = async (status: 'Approved' | 'Rejected') => {
     if (!reviewingLeave) return;
 
+    if (status === 'Rejected' && !reviewRemarks.trim()) {
+      error('Rejection Reason Mandatory', 'Please provide a clear justification for rejecting this leave request.');
+      return;
+    }
+
     const res = await apiRequest(`/leaves/review/${reviewingLeave.id}`, {
       method: 'POST',
       body: JSON.stringify({
         status,
-        remarks: reviewRemarks || `Decided by ${user?.name || 'Supervisor'}`
+        remarks: reviewRemarks.trim() || `Approved by ${user?.name || 'Supervisor'}`
       }),
     });
 
@@ -116,12 +121,22 @@ export default function LeavePage() {
   };
 
   const handleQuickReview = async (leaveId: string, status: 'Approved' | 'Rejected') => {
+    if (status === 'Rejected') {
+      const match = leaves.find(l => l.id === leaveId);
+      if (match) {
+        setReviewingLeave(match);
+        setReviewRemarks('');
+        info('Rejection Reason Required', 'Please enter a justification remark before rejecting.');
+      }
+      return;
+    }
+
     soundFx.playBiometricScan();
     const res = await apiRequest(`/leaves/review/${leaveId}`, {
       method: 'POST',
       body: JSON.stringify({
         status,
-        remarks: `Decided (${status}) by ${user?.name || 'Administrator'}`
+        remarks: `Approved by ${user?.name || 'Administrator'}`
       }),
     });
 
@@ -414,8 +429,13 @@ export default function LeavePage() {
                     onChange={e => setFormData({ ...formData, empId: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 outline-none focus:border-indigo-500"
                   >
-                    {employees.map(e => (
-                      <option key={e.id} value={e.id}>{e.name} ({e.id})</option>
+                    {(isSupervisor
+                      ? employees.filter(e => e.department.toLowerCase() === (user?.department || '').toLowerCase())
+                      : employees
+                    ).map(e => (
+                      <option key={e.id} value={e.id}>
+                        {e.name} ({e.id}) — {e.department}
+                      </option>
                     ))}
                   </select>
                 </div>

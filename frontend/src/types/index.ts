@@ -47,6 +47,7 @@ export interface Attendance {
   workingHours: number;
   regularHours: number;
   overtimeHours: number;
+  breakMinutes?: number;
   lateMinutes: number;
   undertimeMinutes: number;
   status: AttendanceStatus;
@@ -114,11 +115,23 @@ export interface OvertimeRecord {
   amount: number;
   reason?: string;
   status: OvertimeStatus;
+  attendanceId?: string;
+  payrollItemId?: string;
   approverId?: string;
   approverName?: string;
   remarks?: string;
   approvedAt?: string;
   createdAt: string;
+}
+
+export interface QrCredential {
+  id: string;
+  empId: string;
+  tokenVersion: number;
+  secretKey?: string;
+  revoked: boolean;
+  lastGeneratedAt: string;
+  lastScannedAt?: string;
 }
 
 export interface TaxBracket {

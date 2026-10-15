@@ -68,56 +68,60 @@ function QrGeneratorContent() {
 
   const selectedEmployee = employees.find(e => e.id === selectedId) || employees[0];
 
-  // Generate QR code for the selected employee
+  // Generate QR code for the selected employee using cryptographically signed token
   useEffect(() => {
     if (!selectedEmployee) return;
 
-    const payload = JSON.stringify({
-      empId: selectedEmployee.id,
-      name: selectedEmployee.name,
-      dept: selectedEmployee.department,
-      type: 'APEX_ATTENDANCE_QR',
-      v: '2.4',
-      issued: new Date().toISOString().slice(0, 10)
-    });
+    let isMounted = true;
+    apiRequest<{ token: string; payload: any }>(`/attendance/qr-code?empId=${selectedEmployee.id}`)
+      .then(res => {
+        if (!isMounted) return;
+        const tokenString = res.success && res.data?.token
+          ? res.data.token
+          : selectedEmployee.id;
 
-    QRCode.toDataURL(payload, {
-      width: 320,
-      margin: 2,
-      color: {
-        dark: '#0f172a',
-        light: '#ffffff'
-      },
-      errorCorrectionLevel: 'H'
-    })
-      .then(url => {
-        setQrDataUrl(url);
+        QRCode.toDataURL(tokenString, {
+          width: 320,
+          margin: 2,
+          color: {
+            dark: '#0f172a',
+            light: '#ffffff'
+          },
+          errorCorrectionLevel: 'H'
+        })
+          .then(url => {
+            if (isMounted) setQrDataUrl(url);
+          })
+          .catch(err => {
+            console.error('QR generation failed', err);
+          });
       })
       .catch(err => {
-        console.error('QR generation failed', err);
+        console.error('Failed to get signed QR token', err);
       });
+
+    return () => {
+      isMounted = false;
+    };
   }, [selectedEmployee]);
 
   // Generate batch QR codes when batch mode is active
   useEffect(() => {
     if (viewMode !== 'batch' || employees.length === 0) return;
 
-    employees.forEach(emp => {
-      const payload = JSON.stringify({
-        empId: emp.id,
-        name: emp.name,
-        dept: emp.department,
-        type: 'APEX_ATTENDANCE_QR',
-        v: '2.4'
-      });
-
-      QRCode.toDataURL(payload, {
-        width: 200,
-        margin: 1,
-        color: { dark: '#0f172a', light: '#ffffff' }
-      }).then(url => {
+    employees.forEach(async emp => {
+      try {
+        const res = await apiRequest<{ token: string }>(`/attendance/qr-code?empId=${emp.id}`);
+        const tokenString = res.success && res.data?.token ? res.data.token : emp.id;
+        const url = await QRCode.toDataURL(tokenString, {
+          width: 200,
+          margin: 1,
+          color: { dark: '#0f172a', light: '#ffffff' }
+        });
         setBatchQrs(prev => ({ ...prev, [emp.id]: url }));
-      });
+      } catch (e) {
+        console.error('Batch QR error for', emp.id, e);
+      }
     });
   }, [viewMode, employees]);
 
@@ -136,19 +140,14 @@ function QrGeneratorContent() {
     window.print();
   };
 
-  const handleCopyPayload = () => {
+  const handleCopyPayload = async () => {
     if (!selectedEmployee) return;
-    const payload = JSON.stringify({
-      empId: selectedEmployee.id,
-      name: selectedEmployee.name,
-      dept: selectedEmployee.department,
-      type: 'APEX_ATTENDANCE_QR',
-      v: '2.4'
-    }, null, 2);
-    navigator.clipboard.writeText(payload);
+    const res = await apiRequest<{ token: string; payload: any }>(`/attendance/qr-code?empId=${selectedEmployee.id}`);
+    const tokenToCopy = res.success && res.data?.token ? res.data.token : selectedEmployee.id;
+    navigator.clipboard.writeText(tokenToCopy);
     setCopied(true);
     soundFx.playSuccess();
-    success('Payload Copied', 'Copied QR code data structure to clipboard.');
+    success('Signed Token Copied', 'Copied cryptographic attendance token to clipboard.');
     setTimeout(() => setCopied(false), 2000);
   };
 

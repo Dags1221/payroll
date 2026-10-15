@@ -1,18 +1,40 @@
 import { Database } from '../db/database';
-import { Attendance } from '../types';
+import { Attendance, OvertimeRecord } from '../types';
 import { auditService } from './audit.service';
+import { qrService } from './qr.service';
+
+const round2 = (num: number): number => Math.round((num + Number.EPSILON) * 100) / 100;
+
+export function parseTimeToMinutes(timeStr: string): number {
+  if (!timeStr) return 0;
+  if (timeStr.includes('T')) {
+    const d = new Date(timeStr);
+    return d.getHours() * 60 + d.getMinutes();
+  }
+  const match = timeStr.match(/(\d+):(\d+)(?::\d+)?\s*(AM|PM)?/i);
+  if (match) {
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    const meridiem = match[3] ? match[3].toUpperCase() : null;
+    if (meridiem === 'PM' && hours < 12) hours += 12;
+    if (meridiem === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  }
+  return 0;
+}
 
 export class AttendanceService {
   private db = Database.getInstance();
+  private lastPunchTimestamps = new Map<string, number>();
 
   public async getAttendance(filter?: { date?: string; empId?: string }): Promise<Attendance[]> {
     return this.db.getAttendance(filter);
   }
 
-  public async clockIn(empId: string, actorName = 'Employee'): Promise<Attendance> {
+  public async clockIn(empId: string, actorName = 'Employee', customTime?: string): Promise<Attendance> {
     const today = new Date().toISOString().slice(0, 10);
     const now = new Date();
-    const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const timeString = customTime || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     let records = await this.db.getAttendance({ date: today, empId });
     let record = records[0];
@@ -21,14 +43,23 @@ export class AttendanceService {
       throw new Error('Time-in has already been recorded for today.');
     }
 
-    // Standard workday start is 08:00 AM
-    // Calculate late minutes
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const scheduledStartMinutes = 8 * 60; // 08:00 AM
-    const actualMinutes = currentHour * 60 + currentMinute;
-    const lateMinutes = Math.max(0, actualMinutes - scheduledStartMinutes);
+    // Lookup employee schedule
+    const employee = await this.db.getEmployeeById(empId);
+    let scheduledStartMinutes = 8 * 60; // default 08:00 AM
+    if (employee?.workSchedule) {
+      const match = employee.workSchedule.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (match) {
+        let h = parseInt(match[1], 10);
+        const m = parseInt(match[2], 10);
+        const mer = match[3].toUpperCase();
+        if (mer === 'PM' && h < 12) h += 12;
+        if (mer === 'AM' && h === 12) h = 0;
+        scheduledStartMinutes = h * 60 + m;
+      }
+    }
 
+    const actualMinutes = parseTimeToMinutes(timeString);
+    const lateMinutes = Math.max(0, actualMinutes - scheduledStartMinutes);
     const status = lateMinutes > 0 ? 'Late' : 'Present';
 
     if (record) {
@@ -46,6 +77,7 @@ export class AttendanceService {
         workingHours: 0,
         regularHours: 0,
         overtimeHours: 0,
+        breakMinutes: 0,
         lateMinutes,
         undertimeMinutes: 0,
         status,
@@ -53,6 +85,8 @@ export class AttendanceService {
       };
       await this.db.saveAttendance(record);
     }
+
+    this.lastPunchTimestamps.set(empId, Date.now());
 
     await auditService.log({
       userId: empId,
@@ -67,15 +101,15 @@ export class AttendanceService {
     return record;
   }
 
-  public async clockOut(empId: string, actorName = 'Employee'): Promise<Attendance> {
+  public async clockOut(empId: string, actorName = 'Employee', customTime?: string): Promise<Attendance> {
     const today = new Date().toISOString().slice(0, 10);
     const now = new Date();
-    const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const timeString = customTime || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     const records = await this.db.getAttendance({ date: today, empId });
     const record = records[0];
 
-    if (!record || !record.in) {
+    if (!record || !record.in || record.in.trim() === '') {
       throw new Error('No Time-in recorded. Please record Time-in first.');
     }
 
@@ -83,15 +117,74 @@ export class AttendanceService {
       throw new Error('Time-out has already been recorded for today.');
     }
 
-    // Compute working hours (default standard 8.0h if valid punch)
-    const workingHours = 8.0;
-    const regularHours = 8.0;
+    // Parse time in and out to calculate elapsed working minutes
+    const inMinutes = parseTimeToMinutes(record.in);
+    const outMinutes = parseTimeToMinutes(timeString);
+    let elapsedMinutes = outMinutes - inMinutes;
+    if (elapsedMinutes < 0) {
+      // Overnight wrap
+      elapsedMinutes += 24 * 60;
+    }
+
+    // Philippine DOLE statutory mandate:
+    // Deduct 1-hour (60 minutes) unpaid meal break if elapsed shift is >= 5 hours (300 minutes)
+    const breakMinutes = elapsedMinutes >= 300 ? 60 : 0;
+    const netMinutes = Math.max(0, elapsedMinutes - breakMinutes);
+    const workingHours = round2(netMinutes / 60);
+    const regularHours = Math.min(8.0, workingHours);
+    const overtimeHours = Math.max(0, round2(workingHours - 8.0));
+    const undertimeMinutes = Math.max(0, 480 - Math.min(480, netMinutes));
 
     record.out = timeString;
     record.workingHours = workingHours;
     record.regularHours = regularHours;
+    record.overtimeHours = overtimeHours;
+    record.breakMinutes = breakMinutes;
+    record.undertimeMinutes = undertimeMinutes;
 
     await this.db.saveAttendance(record);
+    this.lastPunchTimestamps.set(empId, Date.now());
+
+    // -------------------------------------------------------------
+    // AUTOMATIC OVERTIME CANDIDATE UPSERT PIPELINE
+    // Triggered automatically on time-out when net hours exceed 8.0h
+    // -------------------------------------------------------------
+    if (overtimeHours > 0) {
+      const employee = await this.db.getEmployeeById(empId);
+      const salary = Number(employee?.salary || 0);
+      const hourlyBase = round2(salary / 160);
+      const multiplier = 1.25; // Standard 1.25x for regular workday overtime
+      const hourlyRate = round2(hourlyBase * multiplier);
+      const totalAmount = round2(overtimeHours * hourlyRate);
+
+      const existingOt = await this.db.getOvertimeByAttendanceId(record.id);
+      if (existingOt) {
+        await this.db.updateOvertime(existingOt.id, {
+          hours: overtimeHours,
+          rate: hourlyRate,
+          amount: totalAmount,
+          status: 'Pending',
+          payrollItemId: undefined,
+          reason: `Automatic overtime candidate detected on time-out (${overtimeHours}h exceeding 8h net shift)`
+        });
+      } else {
+        const candidateOt: OvertimeRecord = {
+          id: `OT-${Date.now().toString(36).toUpperCase().slice(-4)}`,
+          date: record.date,
+          empId,
+          regularSchedule: employee?.workSchedule || '08:00 AM - 05:00 PM (Mon-Fri)',
+          hours: overtimeHours,
+          rate: hourlyRate,
+          multiplier,
+          amount: totalAmount,
+          reason: `Automatic overtime candidate detected on time-out (${overtimeHours}h exceeding 8h net shift)`,
+          status: 'Pending',
+          attendanceId: record.id,
+          createdAt: new Date().toISOString()
+        };
+        await this.db.createOvertime(candidateOt);
+      }
+    }
 
     await auditService.log({
       userId: empId,
@@ -100,7 +193,7 @@ export class AttendanceService {
       action: 'ATTENDANCE_CLOCK_OUT',
       entity: 'ATTENDANCE',
       entityId: record.id,
-      details: `Clock-out recorded for ${empId} at ${timeString}. Total: ${workingHours}h.`,
+      details: `Clock-out recorded for ${empId} at ${timeString}. Total: ${workingHours}h (Regular: ${regularHours}h, OT: ${overtimeHours}h, Break: ${breakMinutes}m).`,
     });
 
     return record;
@@ -130,31 +223,56 @@ export class AttendanceService {
     return updated!;
   }
 
-  public async qrPunch(empId: string, requestedType?: 'TIME_IN' | 'TIME_OUT' | 'AUTO', actorName = 'QR Scanner'): Promise<{
+  public async qrPunch(params: {
+    token?: string;
+    empId?: string;
+    requestedType?: 'TIME_IN' | 'TIME_OUT' | 'AUTO';
+    actorName?: string;
+    allowDirectId?: boolean;
+    customTime?: string;
+  }): Promise<{
     record: Attendance;
     action: 'TIME_IN' | 'TIME_OUT';
     employee: any;
     punchTime: string;
     message: string;
   }> {
-    const employee = await this.db.getEmployeeById(empId);
+    let resolvedEmpId: string;
+
+    if (params.token && params.token.trim() !== '') {
+      // Cryptographic verification of HMAC-SHA256 token
+      const verified = await qrService.verifySignedToken(params.token);
+      resolvedEmpId = verified.empId;
+    } else if (params.allowDirectId && params.empId) {
+      resolvedEmpId = params.empId;
+    } else {
+      throw new Error('Valid cryptographically signed QR code token is required for attendance punch.');
+    }
+
+    const employee = await this.db.getEmployeeById(resolvedEmpId);
     if (!employee) {
-      throw new Error(`Employee ID ${empId} not recognized in company roster.`);
+      throw new Error(`Employee ID ${resolvedEmpId} not recognized in company roster.`);
+    }
+
+    // Duplicate-punch / rapid-scan throttling: minimum 15 seconds
+    const lastPunch = this.lastPunchTimestamps.get(resolvedEmpId);
+    if (lastPunch && Date.now() - lastPunch < 15000) {
+      throw new Error(`Rapid badge scan detected for ${employee.name}. Please wait a moment before punching again.`);
     }
 
     const today = new Date().toISOString().slice(0, 10);
-    const existing = await this.db.getAttendance({ date: today, empId });
+    const existing = await this.db.getAttendance({ date: today, empId: resolvedEmpId });
     const record = existing[0];
 
     let action: 'TIME_IN' | 'TIME_OUT';
-    if (requestedType === 'TIME_IN') {
+    if (params.requestedType === 'TIME_IN') {
       action = 'TIME_IN';
-    } else if (requestedType === 'TIME_OUT') {
+    } else if (params.requestedType === 'TIME_OUT') {
       action = 'TIME_OUT';
     } else {
-      if (!record || !record.in) {
+      if (!record || !record.in || record.in.trim() === '') {
         action = 'TIME_IN';
-      } else if (!record.out) {
+      } else if (!record.out || record.out.trim() === '') {
         action = 'TIME_OUT';
       } else {
         throw new Error(`${employee.name} has already logged both Time-In (${record.in}) and Time-Out (${record.out}) for today.`);
@@ -162,14 +280,14 @@ export class AttendanceService {
     }
 
     let savedRecord: Attendance;
+    const actor = params.actorName || 'QR Scanner';
     if (action === 'TIME_IN') {
-      savedRecord = await this.clockIn(empId, `${employee.name} (${actorName})`);
+      savedRecord = await this.clockIn(resolvedEmpId, `${employee.name} (${actor})`, params.customTime);
     } else {
-      savedRecord = await this.clockOut(empId, `${employee.name} (${actorName})`);
+      savedRecord = await this.clockOut(resolvedEmpId, `${employee.name} (${actor})`, params.customTime);
     }
 
-    const now = new Date();
-    const punchTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const punchTime = action === 'TIME_IN' ? savedRecord.in : savedRecord.out;
 
     return {
       record: savedRecord,
@@ -185,7 +303,7 @@ export class AttendanceService {
     };
   }
 
-  public async getAttendanceDashboard(date?: string): Promise<{
+  public async getAttendanceDashboard(date?: string, department?: string): Promise<{
     date: string;
     summary: {
       total: number;
@@ -203,11 +321,15 @@ export class AttendanceService {
     }>;
   }> {
     const queryDate = date || new Date().toISOString().slice(0, 10);
-    const [employees, attendanceList, leaves] = await Promise.all([
+    let [employees, attendanceList, leaves] = await Promise.all([
       this.db.getEmployees(),
       this.db.getAttendance({ date: queryDate }),
       this.db.getLeaves()
     ]);
+
+    if (department && department !== 'ALL') {
+      employees = employees.filter(e => e.department.toLowerCase() === department.toLowerCase());
+    }
 
     const approvedLeavesOnDate = leaves.filter(l =>
       l.status === 'Approved' &&
@@ -246,6 +368,7 @@ export class AttendanceService {
         workingHours: 0,
         regularHours: 0,
         overtimeHours: 0,
+        breakMinutes: 0,
         lateMinutes: 0,
         undertimeMinutes: 0,
         status: effectiveStatus,

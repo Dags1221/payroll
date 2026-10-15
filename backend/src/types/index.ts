@@ -49,6 +49,7 @@ export interface Attendance {
   workingHours: number;
   regularHours: number;
   overtimeHours: number;
+  breakMinutes?: number; // 60 minutes unpaid meal break when elapsed shift >= 5 hours
   lateMinutes: number;
   undertimeMinutes: number;
   status: AttendanceStatus;
@@ -116,11 +117,33 @@ export interface OvertimeRecord {
   amount: number;
   reason?: string;
   status: OvertimeStatus;
+  attendanceId?: string; // linked to attendance punch session
+  payrollItemId?: string; // linked to payroll payout to prevent double-payment
   approverId?: string;
   approverName?: string;
   remarks?: string;
   approvedAt?: string;
   createdAt: string;
+}
+
+export interface QrCredential {
+  id: string;
+  empId: string;
+  tokenVersion: number;
+  secretKey?: string;
+  revoked: boolean;
+  lastGeneratedAt: string;
+  lastScannedAt?: string;
+}
+
+export interface QrTokenPayload {
+  empId: string;
+  name: string;
+  dept: string;
+  iat: number;
+  exp: number;
+  nonce: string;
+  v: number;
 }
 
 export interface TaxBracket {

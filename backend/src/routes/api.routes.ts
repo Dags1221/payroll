@@ -14,6 +14,7 @@ import { reportService } from '../services/report.service';
 import { auditService } from '../services/audit.service';
 import { notificationService } from '../services/notification.service';
 import { advancedFeaturesService } from '../services/advanced-features.service';
+import { qrService } from '../services/qr.service';
 import { authenticate, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
 
 const api = Router();
@@ -137,9 +138,37 @@ api.post('/employees/generate-account', authenticate, requireRole('ADMIN'), asyn
 // ==========================================
 // 3. ATTENDANCE MONITORING
 // ==========================================
-api.get('/attendance', authenticate, async (req: Request, res: Response, next) => {
+api.get('/attendance', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const { date, empId } = req.query as { date?: string; empId?: string };
+    const { date } = req.query as { date?: string };
+    let empId = (req.query as { empId?: string }).empId;
+
+    if (req.user?.role === 'EMPLOYEE') {
+      // Strict ownership: Employee can only view their own attendance
+      empId = req.user.employeeId;
+      const attendance = await attendanceService.getAttendance({ date, empId });
+      res.json({ success: true, data: attendance });
+      return;
+    }
+
+    if (req.user?.role === 'SUPERVISOR') {
+      const dept = req.user.department;
+      const allEmployees = await Database.getInstance().getEmployees();
+      const deptEmployees = allEmployees.filter(e => e.department.toLowerCase() === (dept || '').toLowerCase());
+      const deptEmpIds = new Set(deptEmployees.map(e => e.id));
+
+      if (empId && !deptEmpIds.has(empId)) {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Supervisors can only view attendance for employees in their assigned department.' } });
+        return;
+      }
+
+      let attendance = await attendanceService.getAttendance({ date, empId });
+      attendance = attendance.filter(a => deptEmpIds.has(a.empId));
+      res.json({ success: true, data: attendance });
+      return;
+    }
+
+    // ADMIN: full access
     const attendance = await attendanceService.getAttendance({ date, empId });
     res.json({ success: true, data: attendance });
   } catch (e) {
@@ -147,11 +176,53 @@ api.get('/attendance', authenticate, async (req: Request, res: Response, next) =
   }
 });
 
-api.get('/attendance/dashboard', authenticate, async (req: Request, res: Response, next) => {
+api.get('/attendance/dashboard', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const { date } = req.query as { date?: string };
-    const dashboard = await attendanceService.getAttendanceDashboard(date);
+    const { date, department } = req.query as { date?: string; department?: string };
+    
+    let effectiveDepartment: string | undefined = department;
+    if (req.user?.role === 'SUPERVISOR') {
+      effectiveDepartment = req.user.department;
+    } else if (req.user?.role === 'EMPLOYEE') {
+      res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Employee role does not have permission to view attendance management dashboard.' } });
+      return;
+    }
+
+    const dashboard = await attendanceService.getAttendanceDashboard(date, effectiveDepartment);
     res.json({ success: true, data: dashboard });
+  } catch (e) {
+    next(e);
+  }
+});
+
+api.get('/attendance/qr-code', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    let targetEmpId = (req.query as { empId?: string }).empId;
+
+    if (req.user?.role === 'EMPLOYEE') {
+      targetEmpId = req.user.employeeId;
+    } else if (req.user?.role === 'SUPERVISOR') {
+      if (targetEmpId) {
+        const emp = await Database.getInstance().getEmployeeById(targetEmpId);
+        if (!emp || emp.department.toLowerCase() !== (req.user.department || '').toLowerCase()) {
+          res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Supervisors can only generate QR badges for personnel in their department.' } });
+          return;
+        }
+      } else {
+        targetEmpId = req.user.employeeId;
+      }
+    } else {
+      // ADMIN
+      targetEmpId = targetEmpId || req.user?.employeeId || 'EMP-001';
+    }
+
+    if (!targetEmpId) {
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Target employee ID is required.' } });
+      return;
+    }
+
+    const signedTokenData = await qrService.generateSignedToken(targetEmpId, req.user?.name);
+    res.json({ success: true, data: signedTokenData });
   } catch (e) {
     next(e);
   }
@@ -159,9 +230,44 @@ api.get('/attendance/dashboard', authenticate, async (req: Request, res: Respons
 
 api.post('/attendance/qr-punch', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const { empId, type } = req.body;
-    const targetEmpId = empId || req.user?.employeeId || 'EMP-001';
-    const result = await attendanceService.qrPunch(targetEmpId, type, req.user?.name || 'QR Terminal');
+    const { token, empId, type } = req.body;
+
+    if (token && typeof token === 'string' && token.trim() !== '') {
+      const result = await attendanceService.qrPunch({
+        token,
+        requestedType: type,
+        actorName: req.user?.name || 'QR Terminal'
+      });
+      res.json({ success: true, data: result });
+      return;
+    }
+
+    // Direct punch without token: verify permissions
+    const targetEmpId = empId || req.user?.employeeId;
+    if (!targetEmpId) {
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Cryptographically signed QR token or target employee ID required.' } });
+      return;
+    }
+
+    if (req.user?.role === 'EMPLOYEE' && targetEmpId !== req.user.employeeId) {
+      res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Employees can only punch attendance for their own account.' } });
+      return;
+    }
+
+    if (req.user?.role === 'SUPERVISOR' && targetEmpId !== req.user.employeeId) {
+      const emp = await Database.getInstance().getEmployeeById(targetEmpId);
+      if (!emp || emp.department.toLowerCase() !== (req.user.department || '').toLowerCase()) {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Supervisors can only punch attendance for employees in their department.' } });
+        return;
+      }
+    }
+
+    const result = await attendanceService.qrPunch({
+      empId: targetEmpId,
+      allowDirectId: true,
+      requestedType: type,
+      actorName: req.user?.name || 'Terminal'
+    });
     res.json({ success: true, data: result });
   } catch (e) {
     next(e);
@@ -170,7 +276,12 @@ api.post('/attendance/qr-punch', authenticate, async (req: AuthenticatedRequest,
 
 api.post('/attendance/clock-in', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const empId = req.body.empId || req.user?.employeeId || 'EMP-001';
+    let empId = req.body.empId;
+    if (req.user?.role === 'EMPLOYEE') {
+      empId = req.user.employeeId;
+    } else {
+      empId = empId || req.user?.employeeId || 'EMP-001';
+    }
     const record = await attendanceService.clockIn(empId, req.user?.name);
     res.json({ success: true, data: record });
   } catch (e) {
@@ -180,7 +291,12 @@ api.post('/attendance/clock-in', authenticate, async (req: AuthenticatedRequest,
 
 api.post('/attendance/clock-out', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const empId = req.body.empId || req.user?.employeeId || 'EMP-001';
+    let empId = req.body.empId;
+    if (req.user?.role === 'EMPLOYEE') {
+      empId = req.user.employeeId;
+    } else {
+      empId = empId || req.user?.employeeId || 'EMP-001';
+    }
     const record = await attendanceService.clockOut(empId, req.user?.name);
     res.json({ success: true, data: record });
   } catch (e) {
@@ -238,9 +354,36 @@ api.post('/absenteeism/review/:id', authenticate, requireRole('ADMIN', 'SUPERVIS
 // ==========================================
 // 5. LEAVE REQUISITION WORKFLOW
 // ==========================================
-api.get('/leaves', authenticate, async (req: Request, res: Response, next) => {
+api.get('/leaves', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const { empId, status } = req.query as { empId?: string; status?: string };
+    const { status } = req.query as { status?: string };
+    let empId = (req.query as { empId?: string }).empId;
+
+    if (req.user?.role === 'EMPLOYEE') {
+      empId = req.user.employeeId;
+      const leaves = await leaveService.getLeaves({ empId, status });
+      res.json({ success: true, data: leaves });
+      return;
+    }
+
+    if (req.user?.role === 'SUPERVISOR') {
+      const dept = req.user.department;
+      const allEmployees = await Database.getInstance().getEmployees();
+      const deptEmployees = allEmployees.filter(e => e.department.toLowerCase() === (dept || '').toLowerCase());
+      const deptEmpIds = new Set(deptEmployees.map(e => e.id));
+
+      if (empId && !deptEmpIds.has(empId)) {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Supervisors can only view leave requests for personnel in their assigned department.' } });
+        return;
+      }
+
+      let leaves = await leaveService.getLeaves({ empId, status });
+      leaves = leaves.filter(l => deptEmpIds.has(l.empId));
+      res.json({ success: true, data: leaves });
+      return;
+    }
+
+    // ADMIN
     const leaves = await leaveService.getLeaves({ empId, status });
     res.json({ success: true, data: leaves });
   } catch (e) {
@@ -251,7 +394,42 @@ api.get('/leaves', authenticate, async (req: Request, res: Response, next) => {
 api.post('/leaves', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { empId, type, start, end, reason } = req.body;
-    const effectiveEmpId = empId || req.user?.employeeId || 'EMP-001';
+
+    if (req.user?.role === 'ADMIN' && !req.user.employeeId && !empId) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'ROLE_RESTRICTION', message: 'Administrators cannot file employee self-service leave requests without an employee profile.' }
+      });
+      return;
+    }
+
+    let effectiveEmpId = req.user?.employeeId;
+    if (req.user?.role === 'ADMIN' && empId) {
+      effectiveEmpId = empId;
+    } else if (req.user?.role === 'EMPLOYEE') {
+      if (empId && empId !== req.user.employeeId) {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Employees cannot file leave requests on behalf of other employees.' } });
+        return;
+      }
+      effectiveEmpId = req.user.employeeId;
+    } else if (req.user?.role === 'SUPERVISOR') {
+      if (empId && empId !== req.user.employeeId) {
+        const target = await Database.getInstance().getEmployeeById(empId);
+        if (!target || target.department.toLowerCase() !== (req.user.department || '').toLowerCase()) {
+          res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Supervisors can only file leave on behalf of employees in their department.' } });
+          return;
+        }
+        effectiveEmpId = empId;
+      } else {
+        effectiveEmpId = req.user.employeeId;
+      }
+    }
+
+    if (!effectiveEmpId) {
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Valid employee ID required.' } });
+      return;
+    }
+
     const leave = await leaveService.createLeave({
       empId: effectiveEmpId,
       type,
@@ -269,8 +447,43 @@ api.post('/leaves', authenticate, async (req: AuthenticatedRequest, res: Respons
 api.post('/leaves/review/:id', authenticate, requireRole('ADMIN', 'SUPERVISOR'), async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { status, remarks } = req.body;
+    const leaveId = paramStr(req.params.id);
+
+    const leave = await Database.getInstance().getLeaveById(leaveId);
+    if (!leave) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Leave request not found.' } });
+      return;
+    }
+
+    // Concurrency check
+    if (leave.status !== 'Pending') {
+      res.status(400).json({ success: false, error: { code: 'CONCURRENCY_ERROR', message: `Leave request has already been finalized (${leave.status}).` } });
+      return;
+    }
+
+    // Disallow self-approval
+    if (req.user?.employeeId && leave.empId === req.user.employeeId) {
+      res.status(403).json({ success: false, error: { code: 'SELF_APPROVAL_FORBIDDEN', message: 'Self-approval is forbidden. You cannot approve or reject your own leave request.' } });
+      return;
+    }
+
+    // Supervisor department scoping
+    if (req.user?.role === 'SUPERVISOR') {
+      const emp = await Database.getInstance().getEmployeeById(leave.empId);
+      if (!emp || emp.department.toLowerCase() !== (req.user.department || '').toLowerCase()) {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: `Supervisors can only review leave requests for employees within their assigned department (${req.user.department}).` } });
+        return;
+      }
+    }
+
+    // Mandatory rejection reason
+    if (status === 'Rejected' && (!remarks || String(remarks).trim() === '')) {
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'A rejection reason is mandatory when rejecting a leave request.' } });
+      return;
+    }
+
     const reviewed = await leaveService.reviewLeave({
-      leaveId: paramStr(req.params.id),
+      leaveId,
       status,
       reviewerId: req.user!.id,
       reviewerName: req.user!.name,
@@ -285,9 +498,36 @@ api.post('/leaves/review/:id', authenticate, requireRole('ADMIN', 'SUPERVISOR'),
 // ==========================================
 // 6. OVERTIME COMPENSATION
 // ==========================================
-api.get('/overtime', authenticate, async (req: Request, res: Response, next) => {
+api.get('/overtime', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const { empId, status } = req.query as { empId?: string; status?: string };
+    const { status } = req.query as { status?: string };
+    let empId = (req.query as { empId?: string }).empId;
+
+    if (req.user?.role === 'EMPLOYEE') {
+      empId = req.user.employeeId;
+      const ot = await overtimeService.getOvertime({ empId, status });
+      res.json({ success: true, data: ot });
+      return;
+    }
+
+    if (req.user?.role === 'SUPERVISOR') {
+      const dept = req.user.department;
+      const allEmployees = await Database.getInstance().getEmployees();
+      const deptEmployees = allEmployees.filter(e => e.department.toLowerCase() === (dept || '').toLowerCase());
+      const deptEmpIds = new Set(deptEmployees.map(e => e.id));
+
+      if (empId && !deptEmpIds.has(empId)) {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Supervisors can only view overtime for employees in their department.' } });
+        return;
+      }
+
+      let ot = await overtimeService.getOvertime({ empId, status });
+      ot = ot.filter(o => deptEmpIds.has(o.empId));
+      res.json({ success: true, data: ot });
+      return;
+    }
+
+    // ADMIN
     const ot = await overtimeService.getOvertime({ empId, status });
     res.json({ success: true, data: ot });
   } catch (e) {
@@ -298,7 +538,42 @@ api.get('/overtime', authenticate, async (req: Request, res: Response, next) => 
 api.post('/overtime', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { empId, date, hours, multiplier, reason } = req.body;
-    const effectiveEmpId = empId || req.user?.employeeId || 'EMP-001';
+
+    if (req.user?.role === 'ADMIN' && !req.user.employeeId && !empId) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'ROLE_RESTRICTION', message: 'Administrators must specify an employee for overtime records.' }
+      });
+      return;
+    }
+
+    let effectiveEmpId = req.user?.employeeId;
+    if (req.user?.role === 'ADMIN' && empId) {
+      effectiveEmpId = empId;
+    } else if (req.user?.role === 'EMPLOYEE') {
+      if (empId && empId !== req.user.employeeId) {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Employees cannot file overtime requests on behalf of other employees.' } });
+        return;
+      }
+      effectiveEmpId = req.user.employeeId;
+    } else if (req.user?.role === 'SUPERVISOR') {
+      if (empId && empId !== req.user.employeeId) {
+        const target = await Database.getInstance().getEmployeeById(empId);
+        if (!target || target.department.toLowerCase() !== (req.user.department || '').toLowerCase()) {
+          res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Supervisors can only file overtime for employees in their department.' } });
+          return;
+        }
+        effectiveEmpId = empId;
+      } else {
+        effectiveEmpId = req.user.employeeId;
+      }
+    }
+
+    if (!effectiveEmpId) {
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Target employee ID is required.' } });
+      return;
+    }
+
     const ot = await overtimeService.createOvertime({
       empId: effectiveEmpId,
       date,
@@ -316,8 +591,43 @@ api.post('/overtime', authenticate, async (req: AuthenticatedRequest, res: Respo
 api.post('/overtime/review/:id', authenticate, requireRole('ADMIN', 'SUPERVISOR'), async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { status, remarks } = req.body;
+    const overtimeId = paramStr(req.params.id);
+
+    const ot = await Database.getInstance().getOvertimeById(overtimeId);
+    if (!ot) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Overtime record not found.' } });
+      return;
+    }
+
+    // Concurrency check
+    if (ot.status !== 'Pending') {
+      res.status(400).json({ success: false, error: { code: 'CONCURRENCY_ERROR', message: `Overtime record has already been finalized (${ot.status}).` } });
+      return;
+    }
+
+    // Disallow self-approval
+    if (req.user?.employeeId && ot.empId === req.user.employeeId) {
+      res.status(403).json({ success: false, error: { code: 'SELF_APPROVAL_FORBIDDEN', message: 'Self-approval is forbidden. You cannot approve or reject your own overtime record.' } });
+      return;
+    }
+
+    // Supervisor department scoping
+    if (req.user?.role === 'SUPERVISOR') {
+      const emp = await Database.getInstance().getEmployeeById(ot.empId);
+      if (!emp || emp.department.toLowerCase() !== (req.user.department || '').toLowerCase()) {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: `Supervisors can only review overtime for employees within their assigned department (${req.user.department}).` } });
+        return;
+      }
+    }
+
+    // Mandatory rejection reason
+    if (status === 'Rejected' && (!remarks || String(remarks).trim() === '')) {
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'A rejection reason is mandatory when rejecting overtime.' } });
+      return;
+    }
+
     const reviewed = await overtimeService.reviewOvertime({
-      overtimeId: paramStr(req.params.id),
+      overtimeId,
       status,
       approverId: req.user!.id,
       approverName: req.user!.name,

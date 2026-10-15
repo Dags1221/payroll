@@ -177,9 +177,48 @@ function QrScannerContent() {
     animationFrameRef.current = requestAnimationFrame(scanVideoFrame);
   };
 
-  const handleDecodedCode = (rawText: string) => {
+  const handleDecodedCode = async (rawText: string) => {
     stopCamera();
     soundFx.playBiometricScan();
+
+    const tokenString = rawText.trim();
+
+    // If it's a signed token starting with APXQR, execute verified punch immediately!
+    if (tokenString.startsWith('APXQR.')) {
+      setPunching(true);
+      const res = await apiRequest<{
+        record: Attendance;
+        action: 'TIME_IN' | 'TIME_OUT';
+        employee: any;
+        punchTime: string;
+        message: string;
+      }>('/attendance/qr-punch', {
+        method: 'POST',
+        body: JSON.stringify({ token: tokenString })
+      });
+      setPunching(false);
+
+      if (res.success && res.data) {
+        soundFx.playSuccess();
+        setLastPunchResult(res.data);
+        setTodayAttendance(res.data.record);
+        const match = employees.find(e => e.id === res.data!.employee.id);
+        if (match) setSelectedEmp(match);
+        setScannedData({
+          empId: res.data.employee.id,
+          name: res.data.employee.name,
+          dept: res.data.employee.department
+        });
+        success(
+          `${res.data.action === 'TIME_IN' ? 'Time In' : 'Time Out'} Recorded!`,
+          res.data.message
+        );
+      } else {
+        soundFx.playAlert();
+        error('Badge Punch Failed', res.error?.message || 'Invalid or expired QR badge.');
+      }
+      return;
+    }
 
     let empId = rawText.trim();
     let name = '';
@@ -197,7 +236,7 @@ function QrScannerContent() {
     const found = employees.find(e => e.id.toUpperCase() === empId.toUpperCase());
     if (found) {
       handleSelectEmployee(found);
-      success('QR Code Recognized', `Identified badge for ${found.name} (${found.id}).`);
+      success('Badge Recognized', `Identified badge for ${found.name} (${found.id}). Select punch type below.`);
     } else {
       error('QR Code Unrecognized', `Employee ID ${empId} was not found in company roster.`);
     }
@@ -242,7 +281,13 @@ function QrScannerContent() {
     setPunching(true);
     soundFx.playBiometricScan();
 
-    const res = await apiRequest('/attendance/qr-punch', {
+    const res = await apiRequest<{
+      record: Attendance;
+      action: 'TIME_IN' | 'TIME_OUT';
+      employee: any;
+      punchTime: string;
+      message: string;
+    }>('/attendance/qr-punch', {
       method: 'POST',
       body: JSON.stringify({
         empId: selectedEmp.id,
@@ -258,7 +303,7 @@ function QrScannerContent() {
       setTodayAttendance(res.data.record);
       success(
         `${punchType === 'TIME_IN' ? 'Time In' : 'Time Out'} Recorded!`,
-        `${selectedEmp.name} timestamped at ${res.data.punchTime}.`
+        res.data.message
       );
     } else {
       soundFx.playAlert();

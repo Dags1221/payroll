@@ -21,7 +21,7 @@ import { soundFx } from '../../lib/sound';
 
 export default function OvertimePage() {
   const { user, isAdmin, isSupervisor } = useAuth();
-  const { success, error } = useToast();
+  const { success, error, info } = useToast();
   const [records, setRecords] = useState<OvertimeRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,11 +93,16 @@ export default function OvertimePage() {
   const handleReview = async (status: 'Approved' | 'Rejected') => {
     if (!reviewingOt) return;
 
+    if (status === 'Rejected' && !reviewRemarks.trim()) {
+      error('Rejection Reason Mandatory', 'Please provide a clear justification for rejecting this overtime compensation.');
+      return;
+    }
+
     const res = await apiRequest(`/overtime/review/${reviewingOt.id}`, {
       method: 'POST',
       body: JSON.stringify({
         status,
-        remarks: reviewRemarks || `Decided by ${user?.name || 'Supervisor'}`
+        remarks: reviewRemarks.trim() || `Approved by ${user?.name || 'Supervisor'}`
       }),
     });
 
@@ -112,12 +117,22 @@ export default function OvertimePage() {
   };
 
   const handleDirectReview = async (otId: string, status: 'Approved' | 'Rejected') => {
+    if (status === 'Rejected') {
+      const match = records.find(r => r.id === otId);
+      if (match) {
+        setReviewingOt(match);
+        setReviewRemarks('');
+        info('Rejection Reason Required', 'Please enter a justification remark before rejecting.');
+      }
+      return;
+    }
+
     soundFx.playBiometricScan();
     const res = await apiRequest(`/overtime/review/${otId}`, {
       method: 'POST',
       body: JSON.stringify({
         status,
-        remarks: `Direct ${status.toLowerCase()} by ${user?.name || 'Supervisor'}`
+        remarks: `Approved by ${user?.name || 'Supervisor'}`
       }),
     });
 
@@ -337,17 +352,26 @@ export default function OvertimePage() {
                   <span>Employee Requesting Overtime *</span>
                   <span className="text-[10px] text-indigo-600 font-bold">Personnel Selection</span>
                 </label>
-                <select
-                  value={formData.empId}
-                  onChange={e => setFormData({ ...formData, empId: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 outline-none focus:border-indigo-500 font-medium"
-                >
-                  {employees.map(e => (
-                    <option key={e.id} value={e.id}>
-                      {e.id} — {e.name} ({e.department})
-                    </option>
-                  ))}
-                </select>
+                {!isAdmin && !isSupervisor ? (
+                  <div className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-medium">
+                    {user?.name} ({user?.employeeId || 'My Account'}) — {user?.department || 'Personnel'}
+                  </div>
+                ) : (
+                  <select
+                    value={formData.empId}
+                    onChange={e => setFormData({ ...formData, empId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 outline-none focus:border-indigo-500 font-medium"
+                  >
+                    {(isSupervisor
+                      ? employees.filter(e => e.department.toLowerCase() === (user?.department || '').toLowerCase())
+                      : employees
+                    ).map(e => (
+                      <option key={e.id} value={e.id}>
+                        {e.id} — {e.name} ({e.department})
+                      </option>
+                    ))}
+                  </select>
+                )}
                 {selectedEmp && (
                   <div className="mt-1.5 p-2 rounded-lg bg-slate-50 border border-slate-200/60 text-[11px] text-slate-600 flex items-center justify-between">
                     <span>Position: <strong>{selectedEmp.position}</strong></span>
@@ -377,7 +401,7 @@ export default function OvertimePage() {
                     required
                     value={formData.hours}
                     onChange={e => setFormData({ ...formData, hours: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 outline-none focus:border-indigo-500 font-bold"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 outline-none focus:border-indigo-500 font-bold no-number-spinner"
                   />
                 </div>
               </div>

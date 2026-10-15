@@ -13,6 +13,29 @@ body {
   font-feature-settings: "rlig" 1, "calt" 1;
 }
 
+/* ====================================================================
+   Disable up/down spinner buttons on all number inputs (Chrome/Edge/Safari/Firefox)
+   ==================================================================== */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+.no-number-spinner::-webkit-outer-spin-button,
+.no-number-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.no-number-spinner {
+  -moz-appearance: textfield;
+}
+
 /* Print Styles for Official Payslip PDFs and Reports */
 @media print {
   body {

@@ -14,7 +14,8 @@ import {
   PayrollPeriod,
   PayrollItem,
   AuditLog,
-  AppNotification
+  AppNotification,
+  QrCredential
 } from '../types';
 import { getInitialSeedData } from './seed-data';
 
@@ -32,6 +33,7 @@ interface DatabaseStore {
   payrollItems: PayrollItem[];
   auditLogs: AuditLog[];
   notifications: AppNotification[];
+  qrCredentials?: QrCredential[];
 }
 
 export class Database {
@@ -268,6 +270,40 @@ export class Database {
     this.store.overtime[idx] = { ...this.store.overtime[idx], ...updates };
     this.saveStore();
     return this.store.overtime[idx];
+  }
+
+  public async getOvertimeByAttendanceId(attendanceId: string): Promise<OvertimeRecord | undefined> {
+    return this.store.overtime.find(o => o.attendanceId === attendanceId);
+  }
+
+  // --- QR Credentials ---
+  public async getQrCredential(empId: string): Promise<QrCredential | undefined> {
+    if (!this.store.qrCredentials) this.store.qrCredentials = [];
+    return this.store.qrCredentials.find(q => q.empId === empId);
+  }
+
+  public async saveQrCredential(cred: QrCredential): Promise<QrCredential> {
+    if (!this.store.qrCredentials) this.store.qrCredentials = [];
+    const idx = this.store.qrCredentials.findIndex(q => q.empId === cred.empId);
+    if (idx >= 0) {
+      this.store.qrCredentials[idx] = cred;
+    } else {
+      this.store.qrCredentials.push(cred);
+    }
+    this.saveStore();
+    return cred;
+  }
+
+  public async revokeQrCredential(empId: string): Promise<boolean> {
+    if (!this.store.qrCredentials) this.store.qrCredentials = [];
+    const cred = this.store.qrCredentials.find(q => q.empId === empId);
+    if (cred) {
+      cred.revoked = true;
+      cred.tokenVersion = (cred.tokenVersion || 1) + 1;
+      this.saveStore();
+      return true;
+    }
+    return false;
   }
 
   // --- Benefits ---
