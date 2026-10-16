@@ -4,19 +4,27 @@ import { QrCredential, QrTokenPayload } from '../types';
 import { auditService } from './audit.service';
 
 export function getQrSecret(): string {
-  const secret = process.env.QR_HMAC_SECRET || process.env.QR_SECRET;
-  const isProd = process.env.NODE_ENV === 'production';
-  if (!secret || secret.trim() === '') {
-    if (isProd) {
-      throw new Error('FATAL SECURITY CONFIGURATION ERROR: QR_HMAC_SECRET environment variable is missing in production mode.');
+  const explicitSecret = process.env.QR_HMAC_SECRET || process.env.QR_SECRET;
+  if (explicitSecret && explicitSecret.trim() !== '') {
+    if (process.env.NODE_ENV === 'production' && (explicitSecret.includes('change-me') || explicitSecret.length < 32)) {
+      throw new Error('FATAL SECURITY CONFIGURATION ERROR: Production QR_HMAC_SECRET must be at least 32 characters and cannot use default placeholder values.');
     }
-    console.warn('[SECURITY WARNING] QR_HMAC_SECRET is not set in environment. Falling back to development secret. NEVER use this in production.');
-    return 'apex-payroll-qr-dev-only-secret-key-32chars';
+    return explicitSecret;
   }
-  if (isProd && (secret.includes('change-me') || secret.length < 32)) {
-    throw new Error('FATAL SECURITY CONFIGURATION ERROR: Production QR_HMAC_SECRET must be at least 32 characters and cannot use default placeholder values.');
+
+  // Cryptographically derive a secure 256-bit QR secret from master JWT_SECRET or APP_SECRET
+  const baseSecret = process.env.JWT_SECRET || process.env.APP_SECRET;
+  if (baseSecret && baseSecret.trim() !== '' && !baseSecret.includes('change-me')) {
+    return crypto.createHmac('sha256', baseSecret).update('apex-enterprise-qr-hmac-salt-v1').digest('hex');
   }
-  return secret;
+
+  const isProd = process.env.NODE_ENV === 'production';
+  if (isProd) {
+    throw new Error('FATAL SECURITY CONFIGURATION ERROR: Neither QR_HMAC_SECRET nor a valid JWT_SECRET environment variable is configured in production mode.');
+  }
+
+  console.warn('[SECURITY WARNING] QR_HMAC_SECRET is not set in environment. Falling back to development secret. NEVER use this in production.');
+  return 'apex-payroll-qr-dev-only-secret-key-32chars';
 }
 
 const TOKEN_PREFIX = 'APXQR';

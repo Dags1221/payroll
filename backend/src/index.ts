@@ -11,12 +11,17 @@ dotenv.config();
 // Production Security Sanity Checks
 if (process.env.NODE_ENV === 'production') {
   const missingSecrets: string[] = [];
-  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.trim() === '' || process.env.JWT_SECRET.includes('change-me')) {
-    missingSecrets.push('JWT_SECRET');
+  const hasJwtSecret = Boolean(process.env.JWT_SECRET && process.env.JWT_SECRET.trim() !== '' && !process.env.JWT_SECRET.includes('change-me'));
+  const hasAppSecret = Boolean(process.env.APP_SECRET && process.env.APP_SECRET.trim() !== '' && !process.env.APP_SECRET.includes('change-me'));
+  const hasExplicitQrSecret = Boolean((process.env.QR_HMAC_SECRET || process.env.QR_SECRET) && !process.env.QR_HMAC_SECRET?.includes('change-me'));
+
+  if (!hasJwtSecret && !hasAppSecret) {
+    missingSecrets.push('JWT_SECRET (or APP_SECRET)');
   }
-  if ((!process.env.QR_HMAC_SECRET && !process.env.QR_SECRET) || (process.env.QR_HMAC_SECRET?.includes('change-me'))) {
+  if (!hasExplicitQrSecret && !hasJwtSecret && !hasAppSecret) {
     missingSecrets.push('QR_HMAC_SECRET');
   }
+
   if (missingSecrets.length > 0) {
     console.error('\n================================================================');
     console.error('❌ FATAL PRODUCTION SECURITY ERROR: Missing required secrets:');
@@ -25,6 +30,8 @@ if (process.env.NODE_ENV === 'production') {
     console.error('configured, non-default cryptographic secret keys.');
     console.error('================================================================\n');
     process.exit(1);
+  } else if (!hasExplicitQrSecret) {
+    console.log('ℹ️ [Security] QR_HMAC_SECRET not explicitly set; securely deriving key from master JWT_SECRET.');
   }
 }
 

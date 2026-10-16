@@ -422,23 +422,38 @@ async function runTestSuite5_SecuritySecretsAndPunchRestrictions() {
     else delete process.env.JWT_SECRET;
   }
 
-  // Test 2: Production QR_HMAC_SECRET fail-fast check
+  // Test 2: Production QR_HMAC_SECRET fail-fast and auto-derivation check
   const origQr = process.env.QR_HMAC_SECRET;
+  const origJwt2 = process.env.JWT_SECRET;
   try {
     process.env.NODE_ENV = 'production';
     delete process.env.QR_HMAC_SECRET;
     delete process.env.QR_SECRET;
+    delete process.env.JWT_SECRET;
+    delete process.env.APP_SECRET;
+
+    // Must fail if neither QR secret nor JWT secret is provided
     let caughtQrError = false;
     try {
       getQrSecret();
     } catch (e: any) {
       caughtQrError = e.message.includes('FATAL SECURITY CONFIGURATION ERROR');
     }
-    assert(caughtQrError, 'Production mode strictly requires configured QR_HMAC_SECRET (fails without fallback)');
+    assert(caughtQrError, 'Production mode strictly requires configured QR_HMAC_SECRET or master secret (fails without fallback)');
+
+    // Must securely derive if master JWT_SECRET is provided
+    process.env.JWT_SECRET = 'a-secure-production-jwt-secret-at-least-32-chars-long';
+    const derivedSecret = getQrSecret();
+    assert(
+      typeof derivedSecret === 'string' && derivedSecret.length === 64,
+      'Securely derives 64-char QR HMAC secret from master JWT_SECRET when explicit QR secret is omitted'
+    );
   } finally {
     process.env.NODE_ENV = origEnv;
     if (origQr) process.env.QR_HMAC_SECRET = origQr;
     else delete process.env.QR_HMAC_SECRET;
+    if (origJwt2) process.env.JWT_SECRET = origJwt2;
+    else delete process.env.JWT_SECRET;
   }
 
   // Test 3: Reject non-APXQR token in qrPunch
