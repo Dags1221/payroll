@@ -219,29 +219,19 @@ export default function AttendanceDashboardPage() {
       return;
     }
 
-    const attId = adjustingItem.att.id.startsWith('ATT-PENDING-') || adjustingItem.att.id.startsWith('ATT-SYNTH-')
-      ? null
-      : adjustingItem.att.id;
+    const attId = adjustingItem.att.id;
 
-    let res;
-    if (attId) {
-      res = await apiRequest(`/attendance/adjust/${attId}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          in: adjustForm.in,
-          out: adjustForm.out,
-          status: adjustForm.status,
-          reason: adjustForm.reason
-        }),
-      });
-    } else {
-      // Clock in first then adjust
-      await apiRequest('/attendance/clock-in', {
-        method: 'POST',
-        body: JSON.stringify({ empId: adjustingItem.emp.id })
-      });
-      res = { success: true };
-    }
+    const res = await apiRequest(`/attendance/adjust/${attId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        empId: adjustingItem.emp.id,
+        date: selectedDate,
+        in: adjustForm.in,
+        out: adjustForm.out,
+        status: adjustForm.status,
+        reason: adjustForm.reason
+      }),
+    });
 
     if (res.success) {
       soundFx.playSuccess();
@@ -267,7 +257,7 @@ export default function AttendanceDashboardPage() {
 
   return (
     <>
-      <Navbar title="Attendance & Workforce Dashboard" />
+      <Navbar title="Attendance Dashboard" />
 
       <main className="p-6 max-w-7xl mx-auto space-y-6">
         {/* Header & Date Selector Bar */}
@@ -278,14 +268,14 @@ export default function AttendanceDashboardPage() {
               <span>Real-Time Attendance Monitoring</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-              Workforce Attendance Dashboard
+              Attendance Dashboard
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Live roster overview to see who's present, absent, on approved leave, or late.
+              Live workforce roster overview to monitor who is present, absent, on approved leave, or late.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex items-center gap-2 bg-slate-100 px-3.5 py-2 rounded-2xl border border-slate-200">
               <Calendar className="w-4 h-4 text-indigo-600" />
               <input
@@ -297,20 +287,20 @@ export default function AttendanceDashboardPage() {
             </div>
 
             <button
+              onClick={() => setSelectedDate(todayStr)}
+              className="px-3 py-2 rounded-2xl bg-indigo-50 hover:bg-indigo-100 text-xs font-bold text-indigo-700 transition"
+              title="Jump to today"
+            >
+              Today
+            </button>
+
+            <button
               onClick={fetchDashboardData}
               className="px-3.5 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition flex items-center gap-1.5"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Refresh</span>
             </button>
-
-            <Link
-              href="/qr-scanner"
-              className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-indigo-600/20 transition"
-            >
-              <QrCode className="w-4 h-4" />
-              <span>Launch QR Scanner</span>
-            </Link>
           </div>
         </div>
 
@@ -609,39 +599,23 @@ export default function AttendanceDashboardPage() {
                         {/* Actions */}
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {!att.in && status !== 'On Leave' && (
-                              <button
-                                onClick={() => handleClockIn(emp.id)}
-                                className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
-                              >
-                                Time In
-                              </button>
-                            )}
-
-                            {att.in && !att.out && (
-                              <button
-                                onClick={() => handleClockOut(emp.id)}
-                                className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
-                              >
-                                Time Out
-                              </button>
-                            )}
-
                             <Link
                               href={`/qr-generator?empId=${emp.id}`}
-                              className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
-                              title="View Employee QR Badge"
+                              className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] flex items-center gap-1 transition-colors"
+                              title="View / Print Employee QR Badge"
                             >
                               <QrCode className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">QR Badge</span>
                             </Link>
 
                             {(isAdmin || isSupervisor) && (
                               <button
                                 onClick={() => openAdjustModal(item)}
-                                className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
-                                title="Administrative Correction"
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] flex items-center gap-1 transition-colors"
+                                title="Administrative Adjustment / Correction"
                               >
-                                <Edit3 className="w-3.5 h-3.5" />
+                                <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+                                <span>Adjust</span>
                               </button>
                             )}
                           </div>

@@ -81,12 +81,14 @@ export default function OvertimePage() {
     });
 
     if (res.success) {
-      success('Overtime Filed', 'Overtime record submitted for supervisory review.');
+      soundFx.playSuccess();
+      success('Overtime Assigned', `Overtime work pre-authorized and assigned to ${selectedEmp?.name || formData.empId}.`);
       setIsSubmitOpen(false);
       setFormData({ ...formData, reason: '' });
       fetchData();
     } else {
-      error('Filing Failed', res.error?.message);
+      soundFx.playAlert();
+      error('Assignment Failed', res.error?.message);
     }
   };
 
@@ -172,19 +174,32 @@ export default function OvertimePage() {
         {/* Top Header Card */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs">
           <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold mb-1">
+              <Timer className="w-3.5 h-3.5" />
+              <span>{isAdmin || isSupervisor ? 'Management Overtime Assignment' : 'Personal Overtime Summary'}</span>
+            </div>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Overtime & Premium Pay</h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Review and approve overtime hours. Only authorized overtime is incorporated into payroll disbursement.
+              {isAdmin || isSupervisor
+                ? 'Assign and pre-authorize employee overtime hours. Only authorized overtime is incorporated into payroll disbursement.'
+                : 'View your pre-authorized overtime compensation and premium holiday hours recorded for payroll.'}
             </p>
           </div>
 
-          <button
-            onClick={() => setIsSubmitOpen(true)}
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-1.5 transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>File Overtime</span>
-          </button>
+          {isAdmin || isSupervisor ? (
+            <button
+              onClick={() => setIsSubmitOpen(true)}
+              className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-1.5 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Assign Overtime Work</span>
+            </button>
+          ) : (
+            <div className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200/90 text-slate-700 text-xs font-semibold flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Authorized Overtime Ledger</span>
+            </div>
+          )}
         </div>
 
         {/* Toolbar */}
@@ -343,13 +358,13 @@ export default function OvertimePage() {
       {isSubmitOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in-50">
           <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 p-6 overflow-hidden animate-in zoom-in-95">
-            <h3 className="font-bold text-base text-slate-900 mb-1">File Overtime Record</h3>
-            <p className="text-xs text-slate-500 mb-4">Overtime rate is dynamically computed from basic monthly salary.</p>
+            <h3 className="font-bold text-base text-slate-900 mb-1">Assign Overtime Work to Personnel</h3>
+            <p className="text-xs text-slate-500 mb-4">Assign and pre-authorize overtime work. Compensation rate is dynamically computed from basic monthly salary.</p>
 
             <form onSubmit={handleSubmitOt} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                  <span>Employee Requesting Overtime *</span>
+                  <span>Assign Overtime To Employee *</span>
                   <span className="text-[10px] text-indigo-600 font-bold">Personnel Selection</span>
                 </label>
                 {!isAdmin && !isSupervisor ? (
@@ -455,7 +470,7 @@ export default function OvertimePage() {
                   type="submit"
                   className="px-5 py-2 font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/20 transition-all"
                 >
-                  Submit Overtime
+                  Assign & Authorize Overtime
                 </button>
               </div>
             </form>

@@ -1078,6 +1078,23 @@ export class Database {
     return this.store.costCenters[idx];
   }
 
+  public async deleteCostCenter(id: string): Promise<boolean> {
+    const idx = this.store.costCenters.findIndex(c => c.id === id || c.code === id);
+    if (idx === -1) return false;
+
+    if (this.isPgActive()) {
+      try {
+        await this.pool!.query('DELETE FROM cost_centers WHERE id = $1 OR code = $1', [id]);
+      } catch (err) {
+        console.error('PG delete failed in deleteCostCenter:', err);
+      }
+    }
+
+    this.store.costCenters.splice(idx, 1);
+    this.saveStore();
+    return true;
+  }
+
   // --- Tax Matrix ---
   public async getTaxBrackets(): Promise<TaxBracket[]> {
     if (this.isPgActive()) {

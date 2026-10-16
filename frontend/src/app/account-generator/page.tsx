@@ -20,7 +20,8 @@ import {
   ArrowRight,
   ShieldAlert,
   Building2,
-  BadgeDollarSign
+  BadgeDollarSign,
+  Printer
 } from 'lucide-react';
 import { Navbar } from '../../components/Navbar';
 import { apiRequest, formatPHP } from '../../lib/api';
@@ -187,6 +188,37 @@ export default function AccountGeneratorPage() {
     setCopiedKey(key);
     soundFx.playSuccess();
     setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const copyFullCredentialSlip = () => {
+    if (!provisionedData) return;
+    const slip = `===================================================
+APEX ENTERPRISE — OFFICIAL EMPLOYEE ACCESS SLIP
+===================================================
+Employee Name: ${provisionedData.employee.name}
+Employee ID:   ${provisionedData.employee.id}
+Department:    ${provisionedData.employee.department} (${provisionedData.employee.position})
+
+LOGIN CREDENTIALS:
+Access Portal: ${typeof window !== 'undefined' ? window.location.origin : ''}/login
+Username/Email:${provisionedData.user.email}
+Temporary Pass:${provisionedData.plainPassword}
+Attendance PIN:${provisionedData.pin}
+
+ATTENDANCE INSTRUCTIONS:
+1. Log in to the employee portal using your credentials above.
+2. Present your digital QR badge at any attendance terminal station to record your daily attendance (Time In / Time Out).
+===================================================`;
+    navigator.clipboard.writeText(slip);
+    setCopiedKey('full-slip');
+    soundFx.playSuccess();
+    success('Credential Slip Copied', 'Copied full handout slip to clipboard.');
+    setTimeout(() => setCopiedKey(null), 2500);
+  };
+
+  const handlePrintSlip = () => {
+    soundFx.playSuccess();
+    window.print();
   };
 
   const filteredUsers = users.filter(u => {
@@ -492,8 +524,8 @@ export default function AccountGeneratorPage() {
 
         {/* Provisioned Modal Card */}
         {provisionedData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in">
-            <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-100 space-y-6 relative">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in overflow-y-auto">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-100 space-y-5 relative my-8">
               <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mx-auto">
                 <CheckCircle2 className="w-7 h-7" />
               </div>
@@ -501,53 +533,110 @@ export default function AccountGeneratorPage() {
               <div className="text-center space-y-1">
                 <h3 className="text-xl font-extrabold text-slate-900">Account Successfully Created!</h3>
                 <p className="text-xs text-slate-500">
-                  Credentials for <strong>{provisionedData.employee.name}</strong> are ready for deployment.
+                  Credentials for <strong>{provisionedData.employee.name}</strong> are ready to hand over.
                 </p>
               </div>
 
-              {/* Credential Box */}
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-2.5 text-xs font-mono">
-                <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
-                  <span className="text-slate-500">Employee ID:</span>
-                  <span className="font-bold text-indigo-700">{provisionedData.employee.id}</span>
-                </div>
-                <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
-                  <span className="text-slate-500">Login Email:</span>
-                  <span className="font-semibold text-slate-900">{provisionedData.user.email}</span>
-                </div>
-                <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
-                  <span className="text-slate-500">Temporary Password:</span>
+              {/* Printable Official Handout Slip */}
+              <div
+                id="printable-credential-slip"
+                className="bg-slate-50 rounded-2xl p-4 sm:p-5 border border-slate-200/90 space-y-3 text-xs"
+              >
+                <div className="border-b border-slate-200 pb-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-900">{provisionedData.plainPassword}</span>
-                    <button
-                      onClick={() => copyToClipboard(provisionedData.plainPassword, 'pwd')}
-                      className="p-1 text-slate-400 hover:text-indigo-600"
-                      title="Copy Password"
-                    >
-                      {copiedKey === 'pwd' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
+                    <div className="w-6 h-6 rounded-md bg-indigo-900 text-white flex items-center justify-center font-bold text-[10px]">
+                      AP
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-slate-900 uppercase text-[11px] leading-tight">Apex Enterprise</div>
+                      <div className="text-[9px] text-slate-400">Employee Login & Access Slip</div>
+                    </div>
+                  </div>
+                  <span className="font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                    {provisionedData.employee.id}
+                  </span>
+                </div>
+
+                <div className="space-y-2 font-mono">
+                  <div className="flex justify-between py-0.5 border-b border-slate-200/60">
+                    <span className="text-slate-500 font-sans">Full Name:</span>
+                    <strong className="text-slate-900 font-sans">{provisionedData.employee.name}</strong>
+                  </div>
+                  <div className="flex justify-between py-0.5 border-b border-slate-200/60">
+                    <span className="text-slate-500 font-sans">Department:</span>
+                    <span className="text-slate-700 font-sans">{provisionedData.employee.department} • {provisionedData.employee.position}</span>
+                  </div>
+                  <div className="flex justify-between py-0.5 border-b border-slate-200/60">
+                    <span className="text-slate-500 font-sans">Login Email:</span>
+                    <strong className="text-indigo-700">{provisionedData.user.email}</strong>
+                  </div>
+                  <div className="flex items-center justify-between py-0.5 border-b border-slate-200/60">
+                    <span className="text-slate-500 font-sans">Temporary Password:</span>
+                    <div className="flex items-center gap-1.5">
+                      <strong className="text-slate-900 font-bold bg-white px-2 py-0.5 rounded border border-slate-200">{provisionedData.plainPassword}</strong>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(provisionedData.plainPassword, 'pwd')}
+                        className="p-1 text-slate-400 hover:text-indigo-600 transition"
+                        title="Copy Password"
+                      >
+                        {copiedKey === 'pwd' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between py-0.5">
+                    <span className="text-slate-500 font-sans">Attendance PIN:</span>
+                    <div className="flex items-center gap-1.5">
+                      <strong className="text-emerald-700 font-bold bg-white px-2 py-0.5 rounded border border-slate-200">{provisionedData.pin}</strong>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(provisionedData.pin, 'pin')}
+                        className="p-1 text-slate-400 hover:text-indigo-600 transition"
+                        title="Copy PIN"
+                      >
+                        {copiedKey === 'pin' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-slate-500">QR Security PIN:</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-emerald-700">{provisionedData.pin}</span>
-                    <button
-                      onClick={() => copyToClipboard(provisionedData.pin, 'pin')}
-                      className="p-1 text-slate-400 hover:text-indigo-600"
-                      title="Copy PIN"
-                    >
-                      {copiedKey === 'pin' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
+
+                <div className="bg-indigo-50/60 rounded-xl p-2.5 border border-indigo-100 text-[11px] text-indigo-900 leading-snug space-y-1">
+                  <div className="font-bold flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Instructions for Employee:</span>
                   </div>
+                  <p className="text-[10px] text-slate-600">
+                    1. Navigate to the login portal and sign in with your email and password above.<br />
+                    2. Scan your official digital or printed QR badge at any company attendance scanner to clock in and out.
+                  </p>
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="space-y-2.5">
+              <div className="space-y-2 pt-1">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={copyFullCredentialSlip}
+                    className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md"
+                  >
+                    {copiedKey === 'full-slip' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    <span>{copiedKey === 'full-slip' ? 'Slip Copied!' : 'Copy Slip Note'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handlePrintSlip}
+                    className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 transition-all border border-slate-200"
+                  >
+                    <Printer className="w-4 h-4 text-slate-600" />
+                    <span>Print Handout Slip</span>
+                  </button>
+                </div>
+
                 <Link
                   href={`/qr-generator?empId=${provisionedData.employee.id}`}
-                  className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition-all"
+                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/25 transition-all"
                 >
                   <QrCode className="w-4 h-4" />
                   <span>Generate QR Attendance Badge Now</span>
@@ -557,9 +646,9 @@ export default function AccountGeneratorPage() {
                 <button
                   type="button"
                   onClick={() => setProvisionedData(null)}
-                  className="w-full py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
+                  className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs transition-colors"
                 >
-                  Done & Create Another Account
+                  Done & Provision Next Employee
                 </button>
               </div>
             </div>

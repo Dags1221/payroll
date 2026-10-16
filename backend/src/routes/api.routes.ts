@@ -506,48 +506,53 @@ api.post('/overtime', authenticate, async (req: AuthenticatedRequest, res: Respo
   try {
     const { empId, date, hours, multiplier, reason } = req.body;
 
-    if (req.user?.role === 'ADMIN' && !req.user.employeeId && !empId) {
-      res.status(400).json({
+    // Strict role check: employees cannot file overtime for themselves; it must be assigned by Admin or Supervisor
+    if (req.user?.role === 'EMPLOYEE') {
+      res.status(403).json({
         success: false,
-        error: { code: 'ROLE_RESTRICTION', message: 'Administrators must specify an employee for overtime records.' }
+        error: {
+          code: 'FORBIDDEN_ROLE',
+          message: 'Overtime work must be pre-authorized and assigned by a supervisor or administrator. Employees cannot self-assign overtime.'
+        }
       });
       return;
     }
 
-    let effectiveEmpId = req.user?.employeeId;
-    if (req.user?.role === 'ADMIN' && empId) {
-      effectiveEmpId = empId;
-    } else if (req.user?.role === 'EMPLOYEE') {
-      if (empId && empId !== req.user.employeeId) {
-        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Employees cannot file overtime requests on behalf of other employees.' } });
-        return;
-      }
-      effectiveEmpId = req.user.employeeId;
-    } else if (req.user?.role === 'SUPERVISOR') {
-      if (empId && empId !== req.user.employeeId) {
-        const target = await Database.getInstance().getEmployeeById(empId);
-        if (!target || target.department.toLowerCase() !== (req.user.department || '').toLowerCase()) {
-          res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Supervisors can only file overtime for employees in their department.' } });
-          return;
-        }
-        effectiveEmpId = empId;
-      } else {
-        effectiveEmpId = req.user.employeeId;
-      }
-    }
-
-    if (!effectiveEmpId) {
-      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Target employee ID is required.' } });
+    if (!empId) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Target employee must be selected for overtime assignment.' }
+      });
       return;
     }
 
+    const targetEmp = await Database.getInstance().getEmployeeById(empId);
+    if (!targetEmp) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Target employee not found.' } });
+      return;
+    }
+
+    if (req.user?.role === 'SUPERVISOR') {
+      if (targetEmp.department.toLowerCase() !== (req.user.department || '').toLowerCase()) {
+        res.status(403).json({
+          success: false,
+          error: { code: 'FORBIDDEN', message: `Supervisors can only assign overtime for employees within their department (${req.user.department}).` }
+        });
+        return;
+      }
+    }
+
     const ot = await overtimeService.createOvertime({
-      empId: effectiveEmpId,
+      empId,
       date,
       hours: Number(hours),
       multiplier: multiplier ? Number(multiplier) : 1.25,
       reason,
-      actorName: req.user?.name || 'Employee'
+      actorName: req.user?.name || 'Administrator',
+      status: 'Approved',
+      approverId: req.user?.id,
+      approverName: req.user?.name,
+      remarks: `Assigned and pre-authorized by ${req.user?.name || 'Manager'}`
     });
     res.status(201).json({ success: true, data: ot });
   } catch (e) {
@@ -788,6 +793,15 @@ api.put('/cost-centers/:code', authenticate, requireRole('ADMIN'), async (req: A
   try {
     const updated = await costCenterService.update(paramStr(req.params.code), req.body, req.user?.name);
     res.json({ success: true, data: updated });
+  } catch (e) {
+    next(e);
+  }
+});
+
+api.delete('/cost-centers/:code', authenticate, requireRole('ADMIN'), async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    await costCenterService.delete(paramStr(req.params.code), req.user?.name);
+    res.json({ success: true, data: { message: 'Cost center deleted successfully.' } });
   } catch (e) {
     next(e);
   }

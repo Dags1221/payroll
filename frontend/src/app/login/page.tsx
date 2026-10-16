@@ -175,11 +175,14 @@ export default function WorldClassLoginPage() {
               </Link>
             </div>
 
-            {/* Evaluator Quick-Fill Persona Chips */}
-            <div className="mb-6 p-4 rounded-2xl bg-indigo-950/30 border border-indigo-500/20">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-300 block mb-2">
-                ⚡ Instant Evaluator 1-Click Login (Pre-Configured Roles)
-              </span>
+            {/* Role Guidance and Manual Login Pathways */}
+            <div className="mb-6 p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/30">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-300">
+                  Manual Login Portals & Pre-Configured Accounts
+                </span>
+                <span className="text-[10px] text-cyan-300 font-mono">3 Access Tiers</span>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
@@ -189,31 +192,37 @@ export default function WorldClassLoginPage() {
                   <span className="font-bold text-xs text-white flex items-center gap-1 group-hover:text-indigo-300">
                     👑 Administrator
                   </span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Period lock & Tax matrix</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">admin@payroll.corp</span>
+                  <span className="text-[9px] text-indigo-400 font-mono block">Pass: admin123</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleQuickLogin('SUPERVISOR', 'maria.santos@payroll.corp', 'password123')}
+                  onClick={() => handleQuickLogin('SUPERVISOR', 'maria.santos@payroll.corp', 'employee123')}
                   className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyan-500 text-left transition group"
                 >
                   <span className="font-bold text-xs text-white flex items-center gap-1 group-hover:text-cyan-300">
                     👔 Supervisor
                   </span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Leaves & OT approvals</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">maria.santos@payroll.corp</span>
+                  <span className="text-[9px] text-cyan-400 font-mono block">Pass: employee123</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleQuickLogin('EMPLOYEE', 'juan.delacruz@payroll.corp', 'password123')}
+                  onClick={() => handleQuickLogin('EMPLOYEE', 'juan.delacruz@payroll.corp', 'employee123')}
                   className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-emerald-500 text-left transition group"
                 >
                   <span className="font-bold text-xs text-white flex items-center gap-1 group-hover:text-emerald-300">
-                    🧑‍💻 Staff Member
+                    🧑‍💻 Staff / Employee
                   </span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Time clock & Payslips</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">juan.delacruz@payroll.corp</span>
+                  <span className="text-[9px] text-emerald-400 font-mono block">Pass: employee123</span>
                 </button>
               </div>
+              <p className="text-[10px] text-slate-400 mt-2.5 pt-2 border-t border-slate-800/80 leading-snug">
+                💡 <strong>Admin & Supervisor</strong> log in with assigned management credentials. <strong>Employees</strong> log in using the email & temporary password generated for them by the Administrator via the Employee Account Generator.
+              </p>
             </div>
 
             {/* Login Form */}
@@ -306,14 +315,14 @@ export default function WorldClassLoginPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickLogin('SUPERVISOR', 'maria.santos@payroll.corp', 'password123')}
+                  onClick={() => handleQuickLogin('SUPERVISOR', 'maria.santos@payroll.corp', 'employee123')}
                   className="py-2 px-3 rounded-xl bg-slate-950 border border-slate-800 hover:bg-slate-900 text-[11px] font-semibold text-slate-300 text-center transition"
                 >
                   Microsoft Entra
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickLogin('EMPLOYEE', 'juan.delacruz@payroll.corp', 'password123')}
+                  onClick={() => handleQuickLogin('EMPLOYEE', 'juan.delacruz@payroll.corp', 'employee123')}
                   className="py-2 px-3 rounded-xl bg-slate-950 border border-slate-800 hover:bg-slate-900 text-[11px] font-semibold text-slate-300 text-center transition"
                 >
                   Okta Verify

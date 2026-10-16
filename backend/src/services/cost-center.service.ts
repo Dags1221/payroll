@@ -83,6 +83,22 @@ export class CostCenterService {
     }
     return updated;
   }
+
+  public async delete(code: string, actorName = 'Administrator'): Promise<boolean> {
+    const success = await this.db.deleteCostCenter(code);
+    if (success) {
+      await auditService.log({
+        userId: 'ADMIN',
+        userName: actorName,
+        role: 'ADMIN',
+        action: 'COST_CENTER_DELETE',
+        entity: 'COST_CENTER',
+        entityId: code,
+        details: `Deleted Cost Center ${code}.`,
+      });
+    }
+    return success;
+  }
 }
 
 export const costCenterService = new CostCenterService();

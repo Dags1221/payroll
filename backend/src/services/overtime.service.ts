@@ -19,6 +19,10 @@ export class OvertimeService {
     multiplier?: number;
     reason?: string;
     actorName: string;
+    status?: 'Pending' | 'Approved';
+    approverId?: string;
+    approverName?: string;
+    remarks?: string;
   }): Promise<OvertimeRecord> {
     const emp = await this.db.getEmployeeById(data.empId);
     if (!emp) throw new Error('Employee not found.');
@@ -34,6 +38,8 @@ export class OvertimeService {
     const computedHourlyRate = round2(hourlyBase * multiplier);
     const totalAmount = round2(data.hours * computedHourlyRate);
 
+    const initialStatus = data.status || 'Pending';
+
     const otRecord: OvertimeRecord = {
       id: `OT-${Date.now().toString(36).toUpperCase().slice(-4)}`,
       date: data.date,
@@ -44,29 +50,42 @@ export class OvertimeService {
       multiplier,
       amount: totalAmount,
       reason: data.reason,
-      status: 'Pending',
+      status: initialStatus,
+      approverId: data.approverId,
+      approverName: data.approverName,
+      remarks: data.remarks || (initialStatus === 'Approved' ? `Assigned and pre-authorized by ${data.actorName}` : undefined),
       createdAt: new Date().toISOString()
     };
 
     const saved = await this.db.createOvertime(otRecord);
 
     await auditService.log({
-      userId: data.empId,
+      userId: data.approverId || data.empId,
       userName: data.actorName,
-      role: 'EMPLOYEE',
-      action: 'OVERTIME_CREATE',
+      role: initialStatus === 'Approved' ? 'ADMIN' : 'EMPLOYEE',
+      action: initialStatus === 'Approved' ? 'OVERTIME_ASSIGN' : 'OVERTIME_CREATE',
       entity: 'OVERTIME',
       entityId: saved.id,
-      details: `Filed overtime for ${data.hours} hours on ${data.date}. Computed amount: ₱${totalAmount.toFixed(2)}. Reason: ${data.reason || 'N/A'}`,
+      details: `${initialStatus === 'Approved' ? 'Assigned' : 'Filed'} overtime for ${emp.name} (${data.empId}) for ${data.hours} hours on ${data.date}. Computed amount: ₱${totalAmount.toFixed(2)}. Reason: ${data.reason || 'N/A'}`,
     });
 
-    await notificationService.notify({
-      userId: 'ALL',
-      title: 'New Overtime Request Submitted',
-      message: `${emp.name} filed an overtime request for ${data.hours} hour(s) on ${data.date}.`,
-      type: 'INFO',
-      link: '/overtime'
-    });
+    if (initialStatus === 'Approved') {
+      await notificationService.notify({
+        userId: data.empId,
+        title: 'Overtime Work Assigned',
+        message: `You have been assigned ${data.hours} hour(s) of authorized overtime on ${data.date}. Total estimated compensation: ₱${totalAmount.toFixed(2)}.`,
+        type: 'INFO',
+        link: '/overtime'
+      });
+    } else {
+      await notificationService.notify({
+        userId: 'ALL',
+        title: 'New Overtime Request Submitted',
+        message: `${emp.name} filed an overtime request for ${data.hours} hour(s) on ${data.date}.`,
+        type: 'INFO',
+        link: '/overtime'
+      });
+    }
 
     return saved;
   }

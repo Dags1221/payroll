@@ -200,8 +200,41 @@ export class AttendanceService {
   }
 
   public async adminAdjust(id: string, updates: Partial<Attendance>, adminName: string, reason: string): Promise<Attendance> {
-    const existing = await this.db.getAttendanceById(id);
-    if (!existing) throw new Error('Attendance record not found.');
+    let existing = await this.db.getAttendanceById(id);
+    if (!existing) {
+      if (updates.empId && updates.date) {
+        const newRecord: Attendance = {
+          id: id.startsWith('ATT-PENDING-') || id.startsWith('ATT-SYNTH-') ? `ATT-${Date.now().toString(36).toUpperCase()}` : id,
+          date: updates.date,
+          empId: updates.empId,
+          in: updates.in || '08:00 AM',
+          out: updates.out || '05:00 PM',
+          workingHours: 8,
+          regularHours: 8,
+          overtimeHours: 0,
+          breakMinutes: 60,
+          lateMinutes: 0,
+          undertimeMinutes: 0,
+          status: updates.status || 'Present',
+          correctedBy: adminName,
+          correctedAt: new Date().toISOString(),
+          remarks: reason ? `Admin adjustment: ${reason}` : 'Administrative entry',
+          createdAt: new Date().toISOString()
+        };
+        const saved = await this.db.saveAttendance(newRecord);
+        await auditService.log({
+          userId: 'ADMIN',
+          userName: adminName,
+          role: 'ADMIN',
+          action: 'ATTENDANCE_ADJUSTMENT',
+          entity: 'ATTENDANCE',
+          entityId: saved.id,
+          details: `Administrative attendance record created for ${saved.empId} on ${saved.date}. Reason: ${reason}`,
+        });
+        return saved;
+      }
+      throw new Error('Attendance record not found.');
+    }
 
     const updated = await this.db.updateAttendance(id, {
       ...updates,

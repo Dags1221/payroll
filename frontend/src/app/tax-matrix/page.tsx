@@ -17,6 +17,7 @@ import { apiRequest, formatPHP } from '../../lib/api';
 import { TaxBracket } from '../../types';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { soundFx } from '../../lib/sound';
 
 export default function TaxMatrixPage() {
   const { isAdmin } = useAuth();
@@ -111,10 +112,12 @@ export default function TaxMatrixPage() {
         body: JSON.stringify(formData),
       });
       if (res.success) {
+        soundFx.playSuccess();
         success('Tax Bracket Updated', `Configuration updated for ${formData.name}.`);
         setIsModalOpen(false);
         fetchBrackets();
       } else {
+        soundFx.playAlert();
         error('Update Failed', res.error?.message);
       }
     } else {
@@ -123,23 +126,30 @@ export default function TaxMatrixPage() {
         body: JSON.stringify(formData),
       });
       if (res.success) {
+        soundFx.playSuccess();
         success('Bracket Added', `Created new tax bracket ${formData.name}.`);
         setIsModalOpen(false);
         fetchBrackets();
       } else {
+        soundFx.playAlert();
         error('Creation Failed', res.error?.message);
       }
     }
   };
 
   const toggleStatus = async (b: TaxBracket) => {
+    soundFx.playBiometricScan();
     const res = await apiRequest(`/tax-brackets/${b.id}`, {
       method: 'PUT',
       body: JSON.stringify({ isActive: !b.isActive }),
     });
     if (res.success) {
+      soundFx.playSuccess();
       success('Status Toggled', `${b.name} is now ${!b.isActive ? 'Active' : 'Inactive'}.`);
       fetchBrackets();
+    } else {
+      soundFx.playAlert();
+      error('Status Update Failed', res.error?.message);
     }
   };
 
