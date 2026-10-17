@@ -106,10 +106,18 @@ export default function TaxMatrixPage() {
 
   const handleSaveBracket = async (e: React.FormEvent) => {
     e.preventDefault();
+    const payload = {
+      ...formData,
+      minIncome: Number(formData.minIncome || 0),
+      maxIncome: Number(formData.maxIncome || 0),
+      baseTax: Number(formData.baseTax || 0),
+      excessRate: Number(formData.excessRate || 0),
+    };
+
     if (editingBracket) {
       const res = await apiRequest(`/tax-brackets/${editingBracket.id}`, {
         method: 'PUT',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       if (res.success) {
         soundFx.playSuccess();
@@ -123,7 +131,7 @@ export default function TaxMatrixPage() {
     } else {
       const res = await apiRequest('/tax-brackets', {
         method: 'POST',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       if (res.success) {
         soundFx.playSuccess();

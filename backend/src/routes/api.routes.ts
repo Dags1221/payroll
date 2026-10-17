@@ -42,6 +42,33 @@ api.post('/auth/login', async (req: Request, res: Response, next) => {
   }
 });
 
+api.post('/auth/register', async (req: Request, res: Response, next) => {
+  try {
+    const { name, email, password, department, position, phone } = req.body;
+    if (!name || !email || !password) {
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Full name, email address, and password are required.' } });
+      return;
+    }
+    // Strict governance: Public registration strictly creates EMPLOYEE accounts. Admin & Supervisor accounts are fixed system accounts.
+    await employeeService.generateAccount({
+      name,
+      email,
+      password,
+      role: 'EMPLOYEE',
+      department: department || 'Operations',
+      position: position || 'Associate',
+      phone: phone || '+63 917 000 0000',
+      salary: 25000,
+    }, 'Self-Registration');
+
+    const ip = req.ip || req.socket.remoteAddress;
+    const loginResult = await authService.login(email, password, ip);
+    res.status(201).json({ success: true, data: loginResult });
+  } catch (e) {
+    next(e);
+  }
+});
+
 api.get('/auth/me', authenticate, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     res.json({ success: true, data: req.user });

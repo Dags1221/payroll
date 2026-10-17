@@ -70,14 +70,14 @@ export function Sidebar() {
       {/* Brand header */}
       <div className="p-5 border-b border-slate-800/80 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center text-white font-bold shadow-md shadow-indigo-500/20">
-            <Sparkles className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center text-white font-extrabold text-sm shadow-md shadow-indigo-500/20">
+            EA
           </div>
           <div>
-            <h1 className="font-bold text-base text-white tracking-tight leading-snug">
-              Apex Payroll
+            <h1 className="font-extrabold text-base text-white tracking-tight leading-snug">
+              EAMPMS
             </h1>
-            <p className="text-[11px] text-slate-400 font-medium">Enterprise Workforce</p>
+            <p className="text-[10px] text-slate-400 font-medium leading-tight">Attendance & Payroll</p>
           </div>
         </Link>
       </div>

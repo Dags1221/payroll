@@ -47,7 +47,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <p className="text-xs font-bold tracking-widest uppercase text-slate-300">
           Directing to Secure Authentication Portal...
         </p>
-        <p className="text-[11px] text-slate-500 mt-1">Apex Zero-Trust Identity Perimeter</p>
+        <p className="text-[11px] text-slate-500 mt-1">EAMPMS Zero-Trust Identity Perimeter</p>
       </div>
     );
   }

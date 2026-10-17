@@ -308,6 +308,38 @@ export class Database {
     return user;
   }
 
+  public async updateUser(id: string, updates: Partial<User>): Promise<User | null> {
+    const idx = this.store.users.findIndex(u => u.id === id || u.email.toLowerCase() === id.toLowerCase());
+    if (idx === -1) return null;
+    this.store.users[idx] = {
+      ...this.store.users[idx],
+      ...updates,
+    };
+
+    if (this.isPgActive()) {
+      try {
+        const u = this.store.users[idx];
+        await this.pool!.query(
+          `UPDATE users SET
+             password_hash = COALESCE($2, password_hash),
+             role = COALESCE($3, role),
+             employee_id = COALESCE($4, employee_id),
+             name = COALESCE($5, name),
+             department = COALESCE($6, department),
+             avatar_url = COALESCE($7, avatar_url),
+             is_active = COALESCE($8, is_active)
+           WHERE id = $1`,
+          [u.id, updates.passwordHash, updates.role, updates.employeeId, updates.name, updates.department, updates.avatarUrl, updates.isActive]
+        );
+      } catch (err) {
+        console.error('PG update failed in updateUser:', err);
+      }
+    }
+
+    this.saveStore();
+    return this.store.users[idx];
+  }
+
   // --- Employees ---
   public async getEmployees(): Promise<Employee[]> {
     if (this.isPgActive()) {
@@ -1133,26 +1165,35 @@ export class Database {
   }
 
   public async updateTaxBracket(id: string, updates: Partial<TaxBracket>): Promise<TaxBracket | null> {
-    const idx = this.store.taxBrackets.findIndex(b => b.id === id);
+    const idx = this.store.taxBrackets.findIndex(b => b.id === id || b.code === id);
     if (idx === -1) return null;
+    const targetId = this.store.taxBrackets[idx].id;
     this.store.taxBrackets[idx] = {
       ...this.store.taxBrackets[idx],
       ...updates,
+      minIncome: updates.minIncome !== undefined ? Number(updates.minIncome) : this.store.taxBrackets[idx].minIncome,
+      maxIncome: updates.maxIncome !== undefined ? Number(updates.maxIncome) : this.store.taxBrackets[idx].maxIncome,
+      baseTax: updates.baseTax !== undefined ? Number(updates.baseTax) : this.store.taxBrackets[idx].baseTax,
+      excessRate: updates.excessRate !== undefined ? Number(updates.excessRate) : this.store.taxBrackets[idx].excessRate,
       updatedAt: new Date().toISOString()
     };
 
     if (this.isPgActive()) {
       try {
+        const tb = this.store.taxBrackets[idx];
         await this.pool!.query(
           `UPDATE tax_brackets SET
-             min_income = COALESCE($2, min_income),
-             max_income = COALESCE($3, max_income),
-             base_tax = COALESCE($4, base_tax),
-             excess_rate = COALESCE($5, excess_rate),
-             is_active = COALESCE($6, is_active),
+             name = COALESCE($2, name),
+             min_income = COALESCE($3, min_income),
+             max_income = COALESCE($4, max_income),
+             base_tax = COALESCE($5, base_tax),
+             excess_rate = COALESCE($6, excess_rate),
+             effective_date = COALESCE($7, effective_date),
+             is_active = COALESCE($8, is_active),
+             notes = COALESCE($9, notes),
              updated_at = CURRENT_TIMESTAMP
            WHERE id = $1`,
-          [id, updates.minIncome, updates.maxIncome, updates.baseTax, updates.excessRate, updates.isActive]
+          [targetId, updates.name, updates.minIncome, updates.maxIncome, updates.baseTax, updates.excessRate, updates.effectiveDate, updates.isActive, updates.notes]
         );
       } catch (err) {
         console.error('PG update failed in updateTaxBracket:', err);

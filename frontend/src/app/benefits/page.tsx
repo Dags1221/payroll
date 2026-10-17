@@ -10,17 +10,19 @@ import {
   CheckCircle2,
   DollarSign,
   ShieldCheck,
-  Sparkles
+  Sparkles,
+  Edit2
 } from 'lucide-react';
 import { Navbar } from '../../components/Navbar';
 import { apiRequest, formatPHP } from '../../lib/api';
 import { Benefit, Employee } from '../../types';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { soundFx } from '../../lib/sound';
 
 export default function BenefitsPage() {
   const { user, isAdmin } = useAuth();
-  const { success, error } = useToast();
+  const { success, error, info } = useToast();
   const [benefits, setBenefits] = useState<Benefit[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +32,7 @@ export default function BenefitsPage() {
 
   // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingBenefit, setEditingBenefit] = useState<Benefit | null>(null);
   const [formData, setFormData] = useState({
     empId: '',
     name: 'Health & Medical Allowance',
@@ -60,35 +63,93 @@ export default function BenefitsPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [user]);
 
-  const handleAddBenefit = async (e: React.FormEvent) => {
+  const openAddModal = () => {
+    soundFx.playBiometricScan();
+    setEditingBenefit(null);
+    setFormData({
+      empId: employees[0]?.id || 'EMP-001',
+      name: 'Health & Medical Allowance',
+      type: 'Allowance',
+      amount: 1500,
+      frequency: 'Monthly',
+      status: 'Active',
+      isTaxable: false
+    });
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (b: Benefit) => {
+    soundFx.playBiometricScan();
+    setEditingBenefit(b);
+    setFormData({
+      empId: b.empId,
+      name: b.name,
+      type: b.type,
+      amount: b.amount,
+      frequency: b.frequency,
+      status: b.status,
+      isTaxable: b.isTaxable
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSaveBenefit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || formData.amount <= 0) {
-      error('Validation', 'Benefit name and positive amount are required.');
+      error('Validation Error', 'Benefit name and positive amount are required.');
       return;
     }
 
-    const res = await apiRequest('/benefits', {
-      method: 'POST',
-      body: JSON.stringify(formData),
-    });
+    const payload = {
+      ...formData,
+      amount: Number(formData.amount),
+      empId: formData.empId || employees[0]?.id || 'EMP-001'
+    };
 
-    if (res.success) {
-      success('Benefit Added', `Added ${formData.name} for ${formData.empId}.`);
-      setIsModalOpen(false);
-      fetchData();
+    if (editingBenefit) {
+      const res = await apiRequest(`/benefits/${editingBenefit.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+
+      if (res.success) {
+        soundFx.playSuccess();
+        success('Benefit Updated', `Updated ${formData.name} for ${formData.empId}.`);
+        setIsModalOpen(false);
+        fetchData();
+      } else {
+        soundFx.playAlert();
+        error('Update Failed', res.error?.message);
+      }
     } else {
-      error('Creation Failed', res.error?.message);
+      const res = await apiRequest('/benefits', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      if (res.success) {
+        soundFx.playSuccess();
+        success('Benefit Added', `Added ${formData.name} for ${formData.empId}.`);
+        setIsModalOpen(false);
+        fetchData();
+      } else {
+        soundFx.playAlert();
+        error('Creation Failed', res.error?.message);
+      }
     }
   };
 
   const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this benefit from the active ledger?')) return;
     const res = await apiRequest(`/benefits/${id}`, { method: 'DELETE' });
     if (res.success) {
+      soundFx.playSuccess();
       success('Benefit Removed', 'Benefit successfully removed from active ledger.');
       fetchData();
     } else {
+      soundFx.playAlert();
       error('Delete Failed', res.error?.message);
     }
   };
@@ -96,6 +157,10 @@ export default function BenefitsPage() {
   const getEmp = (id: string) => employees.find(e => e.id === id);
 
   const filtered = benefits.filter(b => {
+    // If regular employee, only show their own benefits
+    if (user?.role === 'EMPLOYEE' && user.employeeId && b.empId !== user.employeeId) {
+      return false;
+    }
     const emp = getEmp(b.empId);
     const matchSearch =
       b.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -121,7 +186,7 @@ export default function BenefitsPage() {
 
           {isAdmin && (
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={openAddModal}
               className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-1.5 transition-all"
             >
               <Plus className="w-4 h-4" />
@@ -235,13 +300,22 @@ export default function BenefitsPage() {
                         </td>
                         <td className="py-3 px-4 text-right">
                           {isAdmin && (
-                            <button
-                              onClick={() => handleDelete(b.id)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                              title="Delete Benefit"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => openEditModal(b)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                title="Edit Benefit"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(b.id)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                title="Delete Benefit"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -254,14 +328,18 @@ export default function BenefitsPage() {
         </div>
       </main>
 
-      {/* Add Benefit Modal */}
+      {/* Add / Edit Benefit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in-50">
           <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 p-6 overflow-hidden animate-in zoom-in-95">
-            <h3 className="font-bold text-base text-slate-900 mb-1">Add Employee Benefit</h3>
-            <p className="text-xs text-slate-500 mb-4">Enroll personnel in allowances or statutory stipends.</p>
+            <h3 className="font-bold text-base text-slate-900 mb-1">
+              {editingBenefit ? 'Edit Employee Benefit' : 'Add Employee Benefit'}
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              {editingBenefit ? `Modify configuration for ${formData.name}.` : 'Enroll personnel in allowances or statutory stipends.'}
+            </p>
 
-            <form onSubmit={handleAddBenefit} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSaveBenefit} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Recipient Employee *</label>
                 <select

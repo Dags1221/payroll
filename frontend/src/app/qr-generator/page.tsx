@@ -169,7 +169,7 @@ function QrGeneratorContent() {
     if (!qrDataUrl) return;
     soundFx.playSuccess();
     const link = document.createElement('a');
-    link.download = `APEX-QR-ID-${activeBadge.id}-${activeBadge.name.replace(/\s+/g, '_')}.png`;
+    link.download = `EAMPMS-QR-ID-${activeBadge.id}-${activeBadge.name.replace(/\s+/g, '_')}.png`;
     link.href = qrDataUrl;
     link.click();
     success('QR Code Downloaded', `Saved attendance ID badge for ${activeBadge.name}.`);
@@ -550,7 +550,7 @@ function QrGeneratorContent() {
                   </div>
 
                   <h2 className="text-sm font-extrabold tracking-wider uppercase text-white">
-                    Apex Enterprises Ltd.
+                    EAMPMS System
                   </h2>
                   <p className="text-[9px] text-indigo-300 font-medium tracking-widest uppercase mt-0.5">
                     Official Corporate Identification Card

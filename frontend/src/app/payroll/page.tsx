@@ -22,6 +22,7 @@ import { apiRequest, formatPHP, formatDate } from '../../lib/api';
 import { PayrollPeriod, PayrollItem } from '../../types';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { soundFx } from '../../lib/sound';
 import Link from 'next/link';
 
 export default function PayrollPage() {
@@ -131,6 +132,33 @@ export default function PayrollPage() {
     }
   };
 
+  const openCreatePeriodModal = () => {
+    soundFx.playBiometricScan();
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const monthName = now.toLocaleString('en-US', { month: 'long' });
+    const isFirstHalf = now.getDate() <= 15;
+
+    const startDate = isFirstHalf ? `${year}-${month}-01` : `${year}-${month}-16`;
+    const lastDayOfMonth = new Date(year, now.getMonth() + 1, 0).getDate();
+    const endDate = isFirstHalf ? `${year}-${month}-15` : `${year}-${month}-${lastDayOfMonth}`;
+    const cutoffDate = endDate;
+    const paymentDate = isFirstHalf
+      ? `${year}-${month}-20`
+      : `${year}-${String(now.getMonth() + 2 > 12 ? 1 : now.getMonth() + 2).padStart(2, '0')}-05`;
+
+    setPeriodForm({
+      name: `${monthName} ${year} — Semi-Monthly (${isFirstHalf ? '1st Half' : '2nd Half'})`,
+      type: 'Semi-Monthly',
+      startDate,
+      endDate,
+      cutoffDate,
+      paymentDate
+    });
+    setIsCreatePeriodOpen(true);
+  };
+
   const handleCreatePeriod = async (e: React.FormEvent) => {
     e.preventDefault();
     const res = await apiRequest('/payroll/periods', {
@@ -139,11 +167,13 @@ export default function PayrollPage() {
     });
 
     if (res.success && res.data) {
+      soundFx.playSuccess();
       success('Payroll Period Created', `Period ${res.data.name} is ready for processing.`);
       setIsCreatePeriodOpen(false);
-      fetchPeriods();
+      await fetchPeriods();
       setSelectedPeriodId(res.data.id);
     } else {
+      soundFx.playAlert();
       error('Creation Failed', res.error?.message);
     }
   };
@@ -172,11 +202,11 @@ export default function PayrollPage() {
           <div className="flex items-center gap-2.5">
             {isAdmin && (
               <button
-                onClick={() => setIsCreatePeriodOpen(true)}
-                className="px-3.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors"
+                onClick={openCreatePeriodModal}
+                className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-1.5 transition-all"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>New Period</span>
+                <span>Create Period</span>
               </button>
             )}
 

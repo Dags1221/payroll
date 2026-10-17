@@ -53,7 +53,10 @@ export default function OvertimePage() {
     if (otRes.success && otRes.data) setRecords(otRes.data);
     if (empRes.success && empRes.data) {
       setEmployees(empRes.data);
-      const defaultId = user?.employeeId || empRes.data[0]?.id;
+      const eligible = isSupervisor
+        ? empRes.data.filter(e => e.department.toLowerCase() === (user?.department || '').toLowerCase())
+        : empRes.data;
+      const defaultId = eligible[0]?.id || empRes.data[0]?.id;
       if (defaultId) {
         setFormData(prev => ({ ...prev, empId: prev.empId || defaultId }));
       }
@@ -63,7 +66,22 @@ export default function OvertimePage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [user]);
+
+  const eligibleEmployees = isSupervisor
+    ? employees.filter(e => e.department.toLowerCase() === (user?.department || '').toLowerCase())
+    : employees;
+
+  const handleOpenAssignModal = () => {
+    const defaultEmp = eligibleEmployees[0]?.id || employees[0]?.id || 'EMP-001';
+    setFormData(prev => ({
+      ...prev,
+      empId: eligibleEmployees.some(e => e.id === prev.empId) ? prev.empId : defaultEmp,
+      date: prev.date || new Date().toISOString().slice(0, 10),
+      reason: ''
+    }));
+    setIsSubmitOpen(true);
+  };
 
   const handleSubmitOt = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,19 +90,23 @@ export default function OvertimePage() {
       return;
     }
 
+    const targetEmpId = formData.empId || eligibleEmployees[0]?.id || 'EMP-001';
+
     const res = await apiRequest('/overtime', {
       method: 'POST',
       body: JSON.stringify({
         ...formData,
-        empId: formData.empId || user?.employeeId || 'EMP-001'
+        empId: targetEmpId,
+        date: formData.date || new Date().toISOString().slice(0, 10)
       }),
     });
 
     if (res.success) {
       soundFx.playSuccess();
-      success('Overtime Assigned', `Overtime work pre-authorized and assigned to ${selectedEmp?.name || formData.empId}.`);
+      const targetEmp = getEmp(targetEmpId);
+      success('Overtime Assigned', `Overtime work pre-authorized and assigned to ${targetEmp?.name || targetEmpId}.`);
       setIsSubmitOpen(false);
-      setFormData({ ...formData, reason: '' });
+      setFormData(prev => ({ ...prev, reason: '' }));
       fetchData();
     } else {
       soundFx.playAlert();
@@ -188,7 +210,7 @@ export default function OvertimePage() {
 
           {isAdmin || isSupervisor ? (
             <button
-              onClick={() => setIsSubmitOpen(true)}
+              onClick={handleOpenAssignModal}
               className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-1.5 transition-all"
             >
               <Plus className="w-4 h-4" />

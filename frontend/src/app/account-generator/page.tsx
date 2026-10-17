@@ -176,6 +176,25 @@ export default function AccountGeneratorPage() {
       soundFx.playSuccess();
       success('Account Generated!', `Created employee profile & system login for ${res.data.employee.name}.`);
       setProvisionedData(res.data);
+
+      // Auto-advance next EMP ID
+      let maxNum = 0;
+      employees.forEach(e => {
+        const match = e.id.match(/^EMP-(\d+)$/i);
+        if (match) {
+          const n = parseInt(match[1], 10);
+          if (n > maxNum) maxNum = n;
+        }
+      });
+      const currentNum = parseInt(formData.id.replace(/^EMP-/i, ''), 10) || maxNum;
+      const nextId = `EMP-${String(Math.max(maxNum, currentNum) + 1).padStart(3, '0')}`;
+
+      setFormData(prev => ({
+        ...prev,
+        id: nextId,
+        name: '',
+        email: ''
+      }));
       fetchData();
     } else {
       soundFx.playAlert();
@@ -193,7 +212,8 @@ export default function AccountGeneratorPage() {
   const copyFullCredentialSlip = () => {
     if (!provisionedData) return;
     const slip = `===================================================
-APEX ENTERPRISE — OFFICIAL EMPLOYEE ACCESS SLIP
+EAMPMS — OFFICIAL EMPLOYEE ACCESS & CREDENTIAL SLIP
+Employee Attendance Monitoring & Payroll Management System
 ===================================================
 Employee Name: ${provisionedData.employee.name}
 Employee ID:   ${provisionedData.employee.id}
@@ -277,15 +297,50 @@ ATTENDANCE INSTRUCTIONS:
 
         {/* Generator Form Section */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xs overflow-hidden">
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+          <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
                 <UserPlus className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-900">Provision New Employee Account</h2>
+                <h2 className="text-base font-bold text-slate-900">Provision & Generate Employee Account</h2>
                 <p className="text-xs text-slate-500">Automatically creates system login credentials, employee master profile, and QR code access.</p>
               </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 hidden sm:inline">Load Existing:</span>
+              <select
+                onChange={e => {
+                  const emp = employees.find(x => x.id === e.target.value);
+                  if (emp) {
+                    setFormData(prev => ({
+                      ...prev,
+                      id: emp.id,
+                      name: emp.name,
+                      email: emp.email,
+                      department: emp.department,
+                      position: emp.position,
+                      salary: emp.salary,
+                      costCenterId: emp.costCenterId || 'CC-001',
+                      workSchedule: emp.workSchedule || prev.workSchedule,
+                      phone: emp.phone || prev.phone,
+                      address: emp.address || prev.address,
+                      tin: emp.tin || prev.tin,
+                      sssNo: emp.sssNo || prev.sssNo,
+                      philHealthNo: emp.philHealthNo || prev.philHealthNo,
+                      pagIbigNo: emp.pagIbigNo || prev.pagIbigNo,
+                    }));
+                    info('Employee Loaded', `Populated details for ${emp.name} (${emp.id}).`);
+                  }
+                }}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-slate-50 outline-none focus:border-indigo-500"
+              >
+                <option value="">-- Or Load from Roster --</option>
+                {employees.map(e => (
+                  <option key={e.id} value={e.id}>{e.id} — {e.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -509,12 +564,12 @@ ATTENDANCE INSTRUCTIONS:
                 {submitting ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Provisioning Credentials...</span>
+                    <span>Generating Account...</span>
                   </>
                 ) : (
                   <>
                     <UserPlus className="w-4 h-4" />
-                    <span>Generate & Provision Account</span>
+                    <span>Generate Account</span>
                   </>
                 )}
               </button>
@@ -545,11 +600,11 @@ ATTENDANCE INSTRUCTIONS:
                 <div className="border-b border-slate-200 pb-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-md bg-indigo-900 text-white flex items-center justify-center font-bold text-[10px]">
-                      AP
+                      EA
                     </div>
                     <div>
-                      <div className="font-extrabold text-slate-900 uppercase text-[11px] leading-tight">Apex Enterprise</div>
-                      <div className="text-[9px] text-slate-400">Employee Login & Access Slip</div>
+                      <div className="font-extrabold text-slate-900 uppercase text-[11px] leading-tight">EAMPMS</div>
+                      <div className="text-[9px] text-slate-400">Employee Login & Credential Slip</div>
                     </div>
                   </div>
                   <span className="font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">

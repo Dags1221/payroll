@@ -39,11 +39,6 @@ export class EmployeeService {
     plainPassword: string;
     pin: string;
   }> {
-    const existingUser = await this.db.findUserByEmail(data.email);
-    if (existingUser) {
-      throw new Error(`An account with email ${data.email} already exists.`);
-    }
-
     let empId = data.id?.trim();
     if (!empId) {
       const all = await this.db.getEmployees();
@@ -56,11 +51,6 @@ export class EmployeeService {
         }
       }
       empId = `EMP-${String(maxNum + 1).padStart(3, '0')}`;
-    }
-
-    const existingEmp = await this.db.getEmployeeById(empId);
-    if (existingEmp) {
-      throw new Error(`Employee with ID ${empId} already exists.`);
     }
 
     const plainPassword = data.password && data.password.trim() !== '' ? data.password : 'ApexPass2026!';
@@ -89,23 +79,43 @@ export class EmployeeService {
       updatedAt: new Date().toISOString()
     };
 
-    const savedEmp = await this.db.createEmployee(newEmp);
+    const existingEmp = await this.db.getEmployeeById(empId);
+    let savedEmp: Employee;
+    if (existingEmp) {
+      savedEmp = (await this.db.updateEmployee(empId, newEmp)) || { ...existingEmp, ...newEmp };
+    } else {
+      savedEmp = await this.db.createEmployee(newEmp);
+    }
 
     const passwordHash = await bcrypt.hash(plainPassword, 10);
-    const userId = `USR-${Date.now().toString(36).toUpperCase()}`;
-    const newUser: User = {
-      id: userId,
-      email: data.email.toLowerCase(),
-      passwordHash,
-      role,
-      employeeId: empId,
-      name: data.name,
-      department: data.department,
-      isActive: true,
-      createdAt: new Date().toISOString()
-    };
+    const existingUser = await this.db.findUserByEmail(data.email);
+    let finalUser: User;
 
-    await this.db.createUser(newUser);
+    if (existingUser) {
+      const updatedUser = await this.db.updateUser(existingUser.id, {
+        passwordHash,
+        role,
+        employeeId: empId,
+        name: data.name,
+        department: data.department,
+        isActive: true
+      });
+      finalUser = updatedUser || { ...existingUser, role, employeeId: empId, name: data.name, department: data.department };
+    } else {
+      const userId = `USR-${Date.now().toString(36).toUpperCase()}`;
+      const newUser: User = {
+        id: userId,
+        email: data.email.toLowerCase(),
+        passwordHash,
+        role,
+        employeeId: empId,
+        name: data.name,
+        department: data.department,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      };
+      finalUser = await this.db.createUser(newUser);
+    }
 
     await auditService.log({
       userId: 'ADMIN',
@@ -113,21 +123,21 @@ export class EmployeeService {
       role: 'ADMIN',
       action: 'ACCOUNT_GENERATED',
       entity: 'USER',
-      entityId: userId,
+      entityId: finalUser.id,
       details: `Generated system account and credentials for ${savedEmp.name} (${empId}, Role: ${role}).`,
     });
 
     return {
       employee: savedEmp,
       user: {
-        id: newUser.id,
-        email: newUser.email,
-        role: newUser.role,
-        employeeId: newUser.employeeId,
-        name: newUser.name,
-        department: newUser.department,
-        isActive: newUser.isActive,
-        createdAt: newUser.createdAt
+        id: finalUser.id,
+        email: finalUser.email,
+        role: finalUser.role,
+        employeeId: finalUser.employeeId,
+        name: finalUser.name,
+        department: finalUser.department,
+        isActive: finalUser.isActive,
+        createdAt: finalUser.createdAt
       },
       plainPassword,
       pin

@@ -5,8 +5,8 @@ import { ToastProvider } from '../context/ToastContext';
 import { AppShell } from '../components/AppShell';
 
 export const metadata: Metadata = {
-  title: 'Apex Payroll | Enterprise Workforce & Attendance Management',
-  description: 'World-Class Employee Attendance Monitoring and Payroll Management System compliant with Philippine statutory rules.',
+  title: 'EAMPMS | Employee Attendance Monitoring & Payroll Management System',
+  description: 'Enterprise Employee Attendance Monitoring & Payroll Management System (EAMPMS) compliant with Philippine statutory rules (TRAIN Law, SSS, PhilHealth, Pag-IBIG).',
 };
 
 export default function RootLayout({
